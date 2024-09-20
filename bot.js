@@ -46,8 +46,12 @@ client.on("interactionCreate", async (interaction) => {
     if (!isProcessing) {
       processQueue();
     }
-
-    await interaction.reply("Your title request has been added to the queue!");
+    
+    if (queue.length > 1) {
+      await interaction.reply("Your title request has been added to the queue!");
+    } else {
+      await interaction.reply("Processing your title request...");
+    }
   }
 });
 
@@ -78,7 +82,6 @@ async function processQueue() {
 
     function resetTimer() {
       remainingTime = 0;
-      console.log(`Timer reset for user ${userId}. Remaining time: ${remainingTime} seconds.`);
     }
 
     collector.on('collect', () => {
@@ -107,27 +110,26 @@ async function processQueue() {
     startTimer();
 
   } catch (error) {
-    console.error(`Error processing request for ${userId}: ${error.message}`);
+    await interaction.message(`Error processing request for ${userId}: ${error.message}`);
     isProcessing = false;
     processQueue();
   }
 }
-
 
 client.login(process.env.DISCORD_TOKEN);
 
 function runAdbCommand(x, y, title) {
   console.log(`Running ADB command at coordinates (${x}, ${y}) with title: ${title}`);
 
-  const tapWorld = `adb -s localhost:5555 shell input tap 89 978`;
-  const tapMagnifyingGlass = `adb -s localhost:5555 shell input tap 660 28`;
-  const tapXCoord = `adb -s localhost:5555 shell input tap 962 215`;
-  const adbPasteCommandX = `adb -s localhost:5555 shell input text "${x}"`;
-  const tapYCoord1 = `adb -s localhost:5555 shell input tap 1169 215`;
-  const tapYCoord2 = `adb -s localhost:5555 shell input tap 1169 215`;
-  const adbPasteCommandY = `adb -s localhost:5555 shell input text "${y}"`;
-  const tapSearch1 = `adb -s localhost:5555 shell input tap 1331 212`;
-  const tapSearch2 = `adb -s localhost:5555 shell input tap 1331 212`;
+  const tapWorld = `adb -s emulator-5554 shell input tap 89 978`;
+  const tapMagnifyingGlass = `adb -s emulator-5554 shell input tap 660 28`;
+  const tapXCoord = `adb -s emulator-5554 shell input tap 962 215`;
+  const adbPasteCommandX = `adb -s emulator-5554 shell input text "${x}"`;
+  const tapYCoord1 = `adb -s emulator-5554 shell input tap 1169 215`;
+  const tapYCoord2 = `adb -s emulator-5554 shell input tap 1169 215`;
+  const adbPasteCommandY = `adb -s emulator-5554 shell input text "${y}"`;
+  const tapSearch1 = `adb -s emulator-5554 shell input tap 1331 212`;
+  const tapSearch2 = `adb -s emulator-5554 shell input tap 1331 212`;
 
   const commands = [
     { cmd: tapWorld, description: "Tapping World" },
