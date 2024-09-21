@@ -1,12 +1,13 @@
 import { Client, GatewayIntentBits as Intents } from "discord.js";
 import dotenv from "dotenv";
-import mongoose from "mongoose";
-import Title from "./models/title.js";
 import { exec } from "child_process";
+import Tesseract from "tesseract.js";
+import fs from "fs";
+import mongoose from "mongoose";
+import User from "./models/User.js";
 
 dotenv.config();
 
-// Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("Connected to MongoDB"))
   .catch(err => console.error("MongoDB connection error:", err));
@@ -19,6 +20,7 @@ const client = new Client({
     Intents.GuildMembers
   ],
 });
+client.login(process.env.DISCORD_TOKEN);
 
 client.once("ready", () => {
   console.log(`Logged in as ${client.user.tag}!`);
@@ -27,10 +29,12 @@ client.once("ready", () => {
 const queue = [];
 let isProcessing = false;
 
+
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isCommand()) return;
 
   const { commandName } = interaction;
+
   if (commandName === "title") {
     const userId = interaction.options.getUser("user")?.id;
     const title = interaction.options.getString("title");
@@ -38,39 +42,47 @@ client.on("interactionCreate", async (interaction) => {
     const x = interaction.options.getInteger("x");
     const y = interaction.options.getInteger("y");
 
-    const request = { interaction, userId, title, kingdom, x, y };
-    queue.push(request);
-    console.log(queue.length)
-    console.log(`Request added to the queue for user ${userId}. Queue length: ${queue.length}`);
+    try {
+      const user = await User.findOne({ userId });
 
-    if (!isProcessing) {
-      processQueue();
-    }
-    
-    if (queue.length > 1) {
-      await interaction.reply("Your title request has been added to the queue!");
-    } else {
-      await interaction.reply("Processing your title request...");
+      if (user) {
+        let username = user.username;
+        const request = { interaction, userId, username, title, kingdom, x, y };
+        queue.push(request);
+
+        if (queue.length > 1) {
+          await interaction.reply("Your title request has been added to the queue!");
+        } else {
+          await interaction.reply("Processing your title request...");
+          processQueue();  // Call processQueue after adding the request to the queue
+        }
+      } else {
+        await interaction.reply("You don't have a registered username. Please provide one using `/register [your_username]`.");
+      }
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      await interaction.reply("An error occurred while fetching your username. Please try again later.");
     }
   }
 });
 
 let timer;
+let remainingTime = 120;  // Define remainingTime globally
 
 async function processQueue() {
-  if (queue.length === 0) {
-    console.log("Queue is empty, stopping processing.");
+  if (isProcessing || queue.length === 0) {
+    console.log("Queue is empty or already being processed, stopping processing.");
     isProcessing = false;
     return;
   }
 
   isProcessing = true;
   const request = queue.shift();
-  const { interaction, x, y, title, userId } = request;
+  const { interaction, x, y, title, userId, username } = request;
 
   try {
-    console.log(`Processing title for user ${userId}`);
-    await runAdbCommand(x, y, title);
+    console.log(`Processing title for user ${username}`);
+    await runAdbCommand(x, y, title, username);
 
     const message = await interaction.followUp(`Title assigned! React with ✅ when done.`);
     await message.react('✅');
@@ -78,48 +90,52 @@ async function processQueue() {
     const filter = (reaction, user) => reaction.emoji.name === '✅' && user.id === userId;
     const collector = message.createReactionCollector({ filter, time: 120 * 1000 });
 
-    let remainingTime = 120;
-
-    function resetTimer() {
-      remainingTime = 0;
-    }
+    remainingTime = 120;  // Reset remainingTime for each request
 
     collector.on('collect', () => {
-      resetTimer();
+      console.log(`User ${username} reacted. Timer reset to 120 seconds.`);
+      remainingTime = 0;  // Reset the remaining time if user reacts
+      clearInterval(timer);  // Clear the timer when reaction is collected
+      collector.stop();  // Stop the collector when reaction is collected
     });
 
     collector.on('end', collected => {
+      clearInterval(timer);  // Clear the timer when the collector ends
       if (collected.size === 0) {
         console.log(`No done reaction within time limit. Moving to the next request.`);
+      } else {
+        console.log(`Done reaction collected. Moving to the next request.`);
       }
       isProcessing = false;
-      processQueue();
+      processQueue();  // Move to the next request
     });
 
-    function startTimer() {
-      timer = setInterval(() => {
-        remainingTime -= 1;
-        if (remainingTime <= 0) {
-          clearInterval(timer);
-          console.log(`Timer ended for user ${userId}. Moving to the next request.`);
-          collector.stop();
-        }
-      }, 1000);
-    }
-
-    startTimer();
+    startTimer(collector);  // Start the timer for this request
 
   } catch (error) {
-    await interaction.message(`Error processing request for ${userId}: ${error.message}`);
+    console.error(`Error processing request for ${userId}: ${error.message}`);
     isProcessing = false;
-    processQueue();
+    processQueue();  // Continue to the next request even if there's an error
   }
 }
 
-client.login(process.env.DISCORD_TOKEN);
+function startTimer(collector) {
+  timer = setInterval(() => {
+    remainingTime -= 1;
+    if (remainingTime <= 0) {
+      clearInterval(timer);
+      console.log(`Times up!`);
 
-function runAdbCommand(x, y, title) {
-  console.log(`Running ADB command at coordinates (${x}, ${y}) with title: ${title}`);
+      if (collector && !collector.ended) {
+        collector.stop();
+      }
+    }
+  }, 1000);
+}
+
+
+function runAdbCommand(x, y, title, username, retryCount = 0, maxRetries = 3) {
+  console.log(`Running ADB command at coordinates (${x}, ${y}) for user: ${username} with title: ${title}`);
 
   const tapWorld = `adb -s emulator-5554 shell input tap 89 978`;
   const tapMagnifyingGlass = `adb -s emulator-5554 shell input tap 660 28`;
@@ -130,6 +146,8 @@ function runAdbCommand(x, y, title) {
   const adbPasteCommandY = `adb -s emulator-5554 shell input text "${y}"`;
   const tapSearch1 = `adb -s emulator-5554 shell input tap 1331 212`;
   const tapSearch2 = `adb -s emulator-5554 shell input tap 1331 212`;
+  const tapCity = `adb -s emulator-5554 shell input tap 956 562`;
+  const captureScreenshot = `adb exec-out screencap -p > ./screenshot.png`;
 
   const commands = [
     { cmd: tapWorld, description: "Tapping World" },
@@ -141,34 +159,80 @@ function runAdbCommand(x, y, title) {
     { cmd: adbPasteCommandY, description: `Pasting Y Coordinate: ${y}` },
     { cmd: tapSearch1, description: `Searching...` },
     { cmd: tapSearch2, description: `Still searching...` },
+    { cmd: tapCity, description: `Attempting to open city` },
+    { cmd: captureScreenshot, description: "Capturing screenshot" },
   ];
 
-  // Return a Promise that resolves when all commands are executed
-  return new Promise((resolve, reject) => {
-    function executeCommandWithDelay(index) {
-      if (index >= commands.length) {
-        console.log("All ADB commands executed.");
-        resolve(); // Resolve the Promise when all commands are executed
-        return;
-      }
+  function executeCommandWithDelay(index) {
+    if (index >= commands.length) {
+      // Perform OCR after all ADB commands have been executed
+      performOCR('./screenshot.png', username)
+        .then((text) => {
+          if (text.includes(username)) {
+            console.log(`User ${username} found in the frame.`);
+            // Execute the tapWorld command again
+            exec(tapWorld, (error, stdout, stderr) => {
+              if (error) {
+                console.error(`Error executing tapWorld after user found: ${error.message}`);
+                return;
+              }
+              console.log(`Executed tapWorld after finding user: ${stdout}`);
+            });
+            // No further actions until the next user
+          } else {
+            console.log(`User ${username} not found in the frame.`);
+            exec(tapWorld, (error, stdout, stderr) => {
+              if (error) {
+                console.error(`Error returning to home (tapWorld): ${error.message}`);
+                return;
+              }
+              console.log(`Returned to home (tapWorld): ${stdout}`);
+              if (retryCount < maxRetries) {
+                console.log(`Retrying... Attempt ${retryCount + 1}`);
+                setTimeout(() => runAdbCommand(x, y, title, username, retryCount + 1, maxRetries), 1000);
+              } else {
+                console.log("Max retries reached. Moving to the next request.");
+                processQueue(); 
+              }
+            });
+          }
+        })
+        .catch((err) => {
+          console.error('OCR Error:', err);
+        });
 
-      const { cmd, description } = commands[index];
-      console.log(`Executing: ${description}`);
-
-      exec(cmd, (error, stdout, stderr) => {
-        if (error) {
-          console.error(`Error executing ${description}: ${error.message}`);
-          reject(error); // Reject the Promise if an error occurs
-          return;
-        }
-        console.log(`${description} output: ${stdout}`);
-
-        // Delay next command by 1 second
-        setTimeout(() => executeCommandWithDelay(index + 1), 1000);
-      });
+      return;
     }
 
-    // Start executing commands with delay
-    executeCommandWithDelay(0);
+    const { cmd, description } = commands[index];
+    console.log(`Executing: ${description}`);
+
+    exec(cmd, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error executing ${description}: ${error.message}`);
+        return;
+      }
+      console.log(`${description} output: ${stdout}`);
+
+      setTimeout(() => executeCommandWithDelay(index + 1), 1000);
+    });
+  }
+
+  executeCommandWithDelay(0);
+}
+
+
+
+function performOCR(imagePath) {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(imagePath)) {
+      return reject('Image not found');
+    }
+
+    Tesseract.recognize(imagePath, 'eng', {
+      logger: (m) => console.log(m),
+    })
+      .then(({ data: { text } }) => resolve(text))
+      .catch((err) => reject(err));
   });
 }
