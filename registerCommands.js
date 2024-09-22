@@ -23,6 +23,13 @@ const assignTitleCommand = {
       description: "The title to assign to the user",
       type: 3, // STRING type
       required: true,
+      // Add the choices for titles here
+      choices: [
+        { name: "Justice", value: "Justice" },
+        { name: "Duke", value: "Duke" },
+        { name: "Architect", value: "Architect" },
+        { name: "Scientist", value: "Scientist" },
+      ],
     },
     {
       name: "kingdom",

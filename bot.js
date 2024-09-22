@@ -1,7 +1,6 @@
 import { Client, GatewayIntentBits as Intents } from "discord.js";
 import dotenv from "dotenv";
 import { exec } from "child_process";
-import Tesseract from "tesseract.js";
 import fs from "fs";
 import mongoose from "mongoose";
 import User from "./models/User.js";
@@ -17,7 +16,7 @@ const client = new Client({
     Intents.Guilds,
     Intents.GuildMessages,
     Intents.GuildMessageReactions,
-    Intents.GuildMembers
+    Intents.GuildMembers,
   ],
 });
 client.login(process.env.DISCORD_TOKEN);
@@ -28,7 +27,6 @@ client.once("ready", () => {
 
 const queue = [];
 let isProcessing = false;
-
 
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isCommand()) return;
@@ -42,90 +40,117 @@ client.on("interactionCreate", async (interaction) => {
     const x = interaction.options.getInteger("x");
     const y = interaction.options.getInteger("y");
 
-    try {
-      const user = await User.findOne({ userId });
+    await interaction.reply("Processing your title request...");
 
+    User.findOne({ userId }).then(user => {
       if (user) {
-        let username = user.username;
-        const request = { interaction, userId, username, title, kingdom, x, y };
+        const request = { interaction, userId, title, kingdom, x, y };
         queue.push(request);
+        console.log(queue.length);
 
+        if (!isProcessing) {
+          processQueue();
+        }
         if (queue.length > 1) {
-          await interaction.reply("Your title request has been added to the queue!");
-        } else {
-          await interaction.reply("Processing your title request...");
-          processQueue();  // Call processQueue after adding the request to the queue
+          interaction.followUp(`<@${userId}>, Your title request has been added to the queue!`);
         }
       } else {
-        await interaction.reply("You don't have a registered username. Please provide one using `/register [your_username]`.");
+        interaction.followUp("You don't have a registered username. Please provide one using /register [your_username].");
       }
-    } catch (error) {
+    }).catch(error => {
       console.error("Error fetching user:", error);
-      await interaction.reply("An error occurred while fetching your username. Please try again later.");
-    }
+      interaction.followUp("An error occurred while fetching your username. Please try again later.");
+    });
+
+  } else if (commandName === "titles") {
+    const availableTitles = ["Duke", "Justice", "Architect", "Scientist"];
+    await interaction.reply(`Available titles: ${availableTitles.join(", ")}`);
+
+  } else if (commandName === "me") {
+    const userId = interaction.user.id;
+
+    User.findOne({ userId }).then(user => {
+      if (user) {
+        interaction.reply(`Your registered username is: ${user.username}`);
+      } else {
+        interaction.reply("You don't have a registered username. Please provide one using /register [your_username].");
+      }
+    }).catch(error => {
+      console.error("Error fetching user:", error);
+      interaction.reply("An error occurred while fetching your username. Please try again later.");
+    });
+
+  } else if (commandName === "register") {
+    const username = interaction.options.getString("username");
+    const userId = interaction.user.id;
+
+    User.findOne({ userId }).then(user => {
+      if (user) {
+        user.username = username;
+        return user.save().then(() => interaction.reply(`Your username has been updated to "${username}"!`));
+      } else {
+        const newUser = new User({ userId, username });
+        return newUser.save().then(() => interaction.reply(`Your username "${username}" has been registered!`));
+      }
+    }).catch(error => {
+      console.error("Error registering user:", error);
+      interaction.reply("An error occurred while registering your username. Please try again later.");
+    });
   }
 });
 
 let timer;
-let remainingTime = 120;  // Define remainingTime globally
+let remainingTime = 120;
 
 async function processQueue() {
   if (isProcessing || queue.length === 0) {
-    console.log("Queue is empty or already being processed, stopping processing.");
     isProcessing = false;
     return;
   }
 
   isProcessing = true;
   const request = queue.shift();
-  const { interaction, x, y, title, userId, username } = request;
+  const { interaction, x, y, title, userId } = request;
 
   try {
-    console.log(`Processing title for user ${username}`);
-    await runAdbCommand(x, y, title, username);
+    console.log(`Processing title for user ${userId}`);
+    await runAdbCommand(x, y, title);
 
-    const message = await interaction.followUp(`Title assigned! React with ✅ when done.`);
+    const message = await interaction.channel.send(`<@${userId}>, You're up! React with ✅ when done.`);
     await message.react('✅');
 
     const filter = (reaction, user) => reaction.emoji.name === '✅' && user.id === userId;
     const collector = message.createReactionCollector({ filter, time: 120 * 1000 });
 
-    remainingTime = 120;  // Reset remainingTime for each request
+    remainingTime = 120;
 
     collector.on('collect', () => {
-      console.log(`User ${username} reacted. Timer reset to 120 seconds.`);
-      remainingTime = 0;  // Reset the remaining time if user reacts
-      clearInterval(timer);  // Clear the timer when reaction is collected
-      collector.stop();  // Stop the collector when reaction is collected
+      remainingTime = 0;
+      clearInterval(timer);
+      collector.stop();
     });
 
     collector.on('end', collected => {
-      clearInterval(timer);  // Clear the timer when the collector ends
-      if (collected.size === 0) {
-        console.log(`No done reaction within time limit. Moving to the next request.`);
-      } else {
-        console.log(`Done reaction collected. Moving to the next request.`);
-      }
+      clearInterval(timer);
+      interaction.channel.send(collected.size === 0 ? `<@${userId}>, Times up!` : `Done reaction collected. Moving to the next request.`);
       isProcessing = false;
-      processQueue();  // Move to the next request
+      processQueue();
     });
 
-    startTimer(collector);  // Start the timer for this request
+    startTimer(collector);
 
   } catch (error) {
     console.error(`Error processing request for ${userId}: ${error.message}`);
     isProcessing = false;
-    processQueue();  // Continue to the next request even if there's an error
+    processQueue();
   }
 }
 
-function startTimer(collector) {
+async function startTimer(collector) {
   timer = setInterval(() => {
     remainingTime -= 1;
     if (remainingTime <= 0) {
       clearInterval(timer);
-      console.log(`Times up!`);
-
       if (collector && !collector.ended) {
         collector.stop();
       }
@@ -133,106 +158,125 @@ function startTimer(collector) {
   }, 1000);
 }
 
+async function runAdbCommand(x, y, title) {
+  console.log(`Running ADB command at coordinates (${x}, ${y}) for title: ${title}`);
 
-function runAdbCommand(x, y, title, username, retryCount = 0, maxRetries = 3) {
-  console.log(`Running ADB command at coordinates (${x}, ${y}) for user: ${username} with title: ${title}`);
-
-  const tapWorld = `adb -s emulator-5554 shell input tap 89 978`;
-  const tapMagnifyingGlass = `adb -s emulator-5554 shell input tap 660 28`;
-  const tapXCoord = `adb -s emulator-5554 shell input tap 962 215`;
-  const adbPasteCommandX = `adb -s emulator-5554 shell input text "${x}"`;
-  const tapYCoord1 = `adb -s emulator-5554 shell input tap 1169 215`;
-  const tapYCoord2 = `adb -s emulator-5554 shell input tap 1169 215`;
-  const adbPasteCommandY = `adb -s emulator-5554 shell input text "${y}"`;
-  const tapSearch1 = `adb -s emulator-5554 shell input tap 1331 212`;
-  const tapSearch2 = `adb -s emulator-5554 shell input tap 1331 212`;
-  const tapCity = `adb -s emulator-5554 shell input tap 956 562`;
-  const captureScreenshot = `adb exec-out screencap -p > ./screenshot.png`;
-
-  const commands = [
-    { cmd: tapWorld, description: "Tapping World" },
-    { cmd: tapMagnifyingGlass, description: "Tapping Magnifying Glass" },
-    { cmd: tapXCoord, description: "Tapping X Coordinate Field" },
-    { cmd: adbPasteCommandX, description: `Pasting X Coordinate: ${x}` },
-    { cmd: tapYCoord1, description: "Tapping Y Coordinate Field" },
-    { cmd: tapYCoord2, description: "Tapping Y Coordinate Field Again" },
-    { cmd: adbPasteCommandY, description: `Pasting Y Coordinate: ${y}` },
-    { cmd: tapSearch1, description: `Searching...` },
-    { cmd: tapSearch2, description: `Still searching...` },
-    { cmd: tapCity, description: `Attempting to open city` },
-    { cmd: captureScreenshot, description: "Capturing screenshot" },
+  const initialCommands = [
+    `adb -s emulator-5554 shell input tap 89 978`,
+    `adb -s emulator-5554 shell input tap 660 28`,
+    `adb -s emulator-5554 shell input tap 962 215`,
+    `adb -s emulator-5554 shell input text "${x}"`,
+    `adb -s emulator-5554 shell input tap 1169 215`,
+    `adb -s emulator-5554 shell input tap 1169 215`,
+    `adb -s emulator-5554 shell input text "${y}"`,
+    `adb -s emulator-5554 shell input tap 1331 212`,
+    `adb -s emulator-5554 shell input tap 1331 212`,
+    `adb -s emulator-5554 shell input tap 956 562`,
+    `adb exec-out screencap -p > ./screenshot.png`,
   ];
 
-  function executeCommandWithDelay(index) {
-    if (index >= commands.length) {
-      // Perform OCR after all ADB commands have been executed
-      performOCR('./screenshot.png', username)
-        .then((text) => {
-          if (text.includes(username)) {
-            console.log(`User ${username} found in the frame.`);
-            // Execute the tapWorld command again
-            exec(tapWorld, (error, stdout, stderr) => {
-              if (error) {
-                console.error(`Error executing tapWorld after user found: ${error.message}`);
-                return;
-              }
-              console.log(`Executed tapWorld after finding user: ${stdout}`);
-            });
-            // No further actions until the next user
-          } else {
-            console.log(`User ${username} not found in the frame.`);
-            exec(tapWorld, (error, stdout, stderr) => {
-              if (error) {
-                console.error(`Error returning to home (tapWorld): ${error.message}`);
-                return;
-              }
-              console.log(`Returned to home (tapWorld): ${stdout}`);
-              if (retryCount < maxRetries) {
-                console.log(`Retrying... Attempt ${retryCount + 1}`);
-                setTimeout(() => runAdbCommand(x, y, title, username, retryCount + 1, maxRetries), 1000);
-              } else {
-                console.log("Max retries reached. Moving to the next request.");
-                processQueue(); 
-              }
-            });
-          }
-        })
-        .catch((err) => {
-          console.error('OCR Error:', err);
-        });
+  const titleCommands = {
+    "Justice": [
+      `adb -s emulator-5554 shell input tap 440 592`,
+      `adb -s emulator-5554 shell input tap 954 958`,
+      `adb -s emulator-5554 shell input tap 89 978`,
+      `adb exec-out screencap -p > ./screenshot_justice.png`
+    ],
+    "Duke": [
+      `adb -s emulator-5554 shell input tap 784 592`,
+      `adb -s emulator-5554 shell input tap 954 958`,
+      `adb -s emulator-5554 shell input tap 89 978`,
+      `adb exec-out screencap -p > ./screenshot_duke.png`
+    ],
+    "Architect": [
+      `adb -s emulator-5554 shell input tap 1125 591`,
+      `adb -s emulator-5554 shell input tap 954 958`,
+      `adb -s emulator-5554 shell input tap 89 978`,
+      `adb exec-out screencap -p > ./screenshot_architect.png`
+    ],
+    "Scientist": [
+      `adb -s emulator-5554 shell input tap 1472 592`,
+      `adb -s emulator-5554 shell input tap 954 958`,
+      `adb -s emulator-5554 shell input tap 89 978`,
+      `adb exec-out screencap -p > ./screenshot_scientist.png`
+    ]
+  };
 
+  async function executeCommandWithDelay(commands, index) {
+    if (index >= commands.length) {
       return;
     }
 
-    const { cmd, description } = commands[index];
-    console.log(`Executing: ${description}`);
+    console.log(`Executing command: ${commands[index]}`); // Log the command being executed
 
-    exec(cmd, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error executing ${description}: ${error.message}`);
-        return;
-      }
-      console.log(`${description} output: ${stdout}`);
-
-      setTimeout(() => executeCommandWithDelay(index + 1), 1000);
+    return new Promise((resolve, reject) => {
+      exec(commands[index], (error, stdout) => {
+        if (error) {
+          console.error(`Error executing command: ${error.message}`);
+          reject(error);
+          return;
+        }
+        setTimeout(() => executeCommandWithDelay(commands, index + 1).then(resolve).catch(reject), 1000);
+      });
     });
   }
 
-  executeCommandWithDelay(0);
-}
+  try {
+    await executeCommandWithDelay(initialCommands, 0);
 
+    // After taking the screenshot, call the Python script
+    exec('python ./cv.py', async (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error executing Python script: ${error.message}`);
+        processQueue(); // Continue with the next request
+        return;
+      }
 
+      let result;
+      try {
+        result = JSON.parse(stdout); // Parse the output
+      } catch (err) {
+        console.error('Error parsing Python script output:', err);
+        processQueue(); // Continue with the next request
+        return;
+      }
 
-function performOCR(imagePath) {
-  return new Promise((resolve, reject) => {
-    if (!fs.existsSync(imagePath)) {
-      return reject('Image not found');
-    }
+      if (result.error) {
+        console.log(result.error);
+        processQueue(); // Continue with the next request
+        return;
+      }
 
-    Tesseract.recognize(imagePath, 'eng', {
-      logger: (m) => console.log(m),
-    })
-      .then(({ data: { text } }) => resolve(text))
-      .catch((err) => reject(err));
-  });
+      const { x: buttonX, y: buttonY } = result;
+      console.log(`Attempting to tap "Add Title" button at (${buttonX}, ${buttonY})`);
+
+      await new Promise((resolve, reject) => {
+        exec(`adb -s emulator-5554 shell input tap ${buttonX} ${buttonY}`, (error, stdout) => {
+          if (error) {
+            console.error(`Error tapping "Add Title" button: ${error.message}`);
+            reject(error);
+          } else {
+            console.log(`Tapped "Add Title" button: ${stdout}`);
+            resolve();
+          }
+        });
+      });
+
+      // Wait for 2 seconds before executing titleCommands
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Check if titleCommands for the title exist and execute them
+      if (titleCommands[title]) {
+        console.log(`Executing commands for title: ${title}`);
+        await executeCommandWithDelay(titleCommands[title], 0);
+      } else {
+        console.error(`No commands found for title: ${title}`);
+      }
+
+      processQueue(); // Continue with the next request
+    });
+  } catch (error) {
+    console.error("Error during initial command execution:", error);
+    processQueue(); // Continue with the next request
+  }
 }
