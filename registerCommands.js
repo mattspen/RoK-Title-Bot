@@ -1,11 +1,14 @@
 import "dotenv/config";
 import fetch from "node-fetch";
+import { Client, GatewayIntentBits } from "discord.js";
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const APP_ID = process.env.APP_ID;
-const GUILD_ID = process.env.GUILD_ID;
 
-const url = `https://discord.com/api/v10/applications/${APP_ID}/guilds/${GUILD_ID}/commands`;
+// Create a new Discord client
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds] // Required to access guilds
+});
 
 // Command to assign a title
 const assignTitleCommand = {
@@ -23,19 +26,12 @@ const assignTitleCommand = {
       description: "The title to assign to the user",
       type: 3, // STRING type
       required: true,
-      // Add the choices for titles here
       choices: [
         { name: "Justice", value: "Justice" },
         { name: "Duke", value: "Duke" },
         { name: "Architect", value: "Architect" },
         { name: "Scientist", value: "Scientist" },
       ],
-    },
-    {
-      name: "kingdom",
-      description: "Kingdom identifier",
-      type: 3, // STRING type
-      required: true,
     },
     {
       name: "x",
@@ -52,7 +48,6 @@ const assignTitleCommand = {
   ],
 };
 
-// New command to show all titles
 const showTitlesCommand = {
   name: "titles",
   description: "Show all possible titles",
@@ -76,19 +71,20 @@ const registrationCommand = {
   ],
 };
 
-async function registerCommands() {
-  try {
-    await registerCommand(assignTitleCommand);
-    await registerCommand(showTitlesCommand);
-    await registerCommand(registrationCommand);
-    await registerCommand(meCommand);
+async function registerCommandsForGuild(guildId) {
+  const url = `https://discord.com/api/v10/applications/${APP_ID}/guilds/${guildId}/commands`;
 
+  try {
+    await registerCommand(url, assignTitleCommand);
+    await registerCommand(url, showTitlesCommand);
+    await registerCommand(url, registrationCommand);
+    await registerCommand(url, meCommand);
   } catch (error) {
-    console.error("Failed to register commands:", error);
+    console.error(`Failed to register commands for guild ${guildId}:`, error);
   }
 }
 
-async function registerCommand(command) {
+async function registerCommand(url, command) {
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -99,7 +95,6 @@ async function registerCommand(command) {
   });
 
   console.log(`HTTP Status: ${response.status}`);
-  console.log(`Response Headers: ${JSON.stringify(response.headers.raw())}`);
 
   if (response.ok) {
     const data = await response.json();
@@ -107,13 +102,18 @@ async function registerCommand(command) {
   } else {
     const errorData = await response.json();
     console.error("Error registering command:", errorData);
-    if (errorData.errors) {
-      console.error(
-        "Detailed Errors:",
-        JSON.stringify(errorData.errors, null, 2)
-      );
-    }
   }
 }
 
-registerCommands();
+client.once('ready', () => {
+  console.log(`Logged in as ${client.user.tag}!`);
+
+  // Register commands for each connected guild
+  client.guilds.cache.forEach(guild => {
+    console.log(`Registering commands for guild: ${guild.name} (ID: ${guild.id})`);
+    registerCommandsForGuild(guild.id);
+  });
+});
+
+// Log in to Discord
+client.login(DISCORD_TOKEN);
