@@ -93,15 +93,15 @@ client.on("interactionCreate", async (interaction) => {
   if (commandName === "title") {
     const userId = interaction.options.getUser("user")?.id;
     const title = interaction.options.getString("title");
-    const kingdom = interaction.options.getString("kingdom");
+    const kingdom = interaction.options.getString("kingdom"); // Ensure this is set correctly
     const x = interaction.options.getInteger("x");
     const y = interaction.options.getInteger("y");
 
     await interaction.reply("Processing your title request...");
 
     User.findOne({ userId }).then(user => {
-      if (user) {
-        const request = { interaction, userId, title, kingdom, x, y };
+      if (user && user.username && user.kingdom) {
+        const request = { interaction, userId, title, kingdom: user.kingdom, x, y }; // Use user.kingdom
         queue.push(request);
         console.log(queue.length);
 
@@ -112,14 +112,14 @@ client.on("interactionCreate", async (interaction) => {
           interaction.followUp(`<@${userId}>, Your title request has been added to the queue!`);
         }
       } else {
-        interaction.followUp("You don't have a registered username. Please provide one using /register [your_username].");
+        interaction.followUp("You don't have a registered username and kingdom. Please provide them using `/register [your_username] [your_kingdom]`.");
       }
     }).catch(error => {
       console.error("Error fetching user:", error);
-      interaction.followUp("An error occurred while fetching your username. Please try again later.");
+      interaction.followUp("An error occurred while fetching your details. Please try again later.");
     });
-
-  } else if (commandName === "titles") {
+  }
+  else if (commandName === "titles") {
     const availableTitles = ["Duke", "Justice", "Architect", "Scientist"];
     await interaction.reply(`Available titles: ${availableTitles.join(", ")}`);
 
@@ -128,33 +128,36 @@ client.on("interactionCreate", async (interaction) => {
 
     User.findOne({ userId }).then(user => {
       if (user) {
-        interaction.reply(`Your registered username is: ${user.username}`);
+        interaction.reply(`Your registered username is: ${user.username} and your kingdom is: ${user.kingdom}`);
       } else {
-        interaction.reply("You don't have a registered username. Please provide one using /register [your_username].");
+        interaction.reply("You don't have a registered username and kingdom. Please provide them using `/register [your_username] [your_kingdom]`.");
       }
     }).catch(error => {
       console.error("Error fetching user:", error);
-      interaction.reply("An error occurred while fetching your username. Please try again later.");
+      interaction.reply("An error occurred while fetching your details. Please try again later.");
     });
 
   } else if (commandName === "register") {
     const username = interaction.options.getString("username");
+    const kingdom = interaction.options.getString("kingdom");
     const userId = interaction.user.id;
 
     User.findOne({ userId }).then(user => {
       if (user) {
         user.username = username;
-        return user.save().then(() => interaction.reply(`Your username has been updated to "${username}"!`));
+        user.kingdom = kingdom;
+        return user.save().then(() => interaction.reply(`Your username has been updated to "${username}" and kingdom to "${kingdom}"!`));
       } else {
-        const newUser = new User({ userId, username });
-        return newUser.save().then(() => interaction.reply(`Your username "${username}" has been registered!`));
+        const newUser = new User({ userId, username, kingdom }); // Save kingdom on registration
+        return newUser.save().then(() => interaction.reply(`Your username "${username}" and kingdom "${kingdom}" have been registered!`));
       }
     }).catch(error => {
       console.error("Error registering user:", error);
-      interaction.reply("An error occurred while registering your username. Please try again later.");
+      interaction.reply("An error occurred while registering your username and kingdom. Please try again later.");
     });
   }
 });
+
 
 let timer;
 let remainingTime = 120;
@@ -167,11 +170,11 @@ async function processQueue() {
 
   isProcessing = true;
   const request = queue.shift();
-  const { interaction, x, y, title, userId } = request;
+  const { interaction, x, y, title, userId, kingdom } = request; // Extract kingdom
 
   try {
     console.log(`Processing title for user ${userId}`);
-    await runAdbCommand(x, y, title);
+    await runAdbCommand(userId, x, y, title, kingdom); // Pass kingdom here
 
     const message = await interaction.channel.send(`<@${userId}>, You're up! React with ✅ when done.`);
     await message.react('✅');
@@ -203,6 +206,7 @@ async function processQueue() {
   }
 }
 
+
 async function startTimer(collector) {
   timer = setInterval(() => {
     remainingTime -= 1;
@@ -215,47 +219,59 @@ async function startTimer(collector) {
   }, 1000);
 }
 
-async function runAdbCommand(x, y, title) {
-  console.log(`Running ADB command at coordinates (${x}, ${y}) for title: ${title}`);
+async function runAdbCommand(userId, x, y, title, kingdom) {
+  let deviceId;
+
+  // Set the device ID based on the kingdom
+  if (kingdom === 3211) {
+    deviceId = 'emulator-5554';
+  } else if (kingdom === 3212) {
+    deviceId = 'emulator-5584';
+  } else {
+    console.error("Invalid kingdom. Please provide a valid kingdom.");
+    return; // Exit if the kingdom is invalid
+  }
+
+  console.log(`Running ADB command on ${deviceId} at coordinates (${x}, ${y}) for title: ${title}`);
 
   const initialCommands = [
-    `adb -s emulator-5554 shell input tap 89 978`,
-    `adb -s emulator-5554 shell input tap 660 28`,
-    `adb -s emulator-5554 shell input tap 962 215`,
-    `adb -s emulator-5554 shell input text "${x}"`,
-    `adb -s emulator-5554 shell input tap 1169 215`,
-    `adb -s emulator-5554 shell input tap 1169 215`,
-    `adb -s emulator-5554 shell input text "${y}"`,
-    `adb -s emulator-5554 shell input tap 1331 212`,
-    `adb -s emulator-5554 shell input tap 1331 212`,
-    `adb -s emulator-5554 shell input tap 956 562`,
-    `adb exec-out screencap -p > ./screenshot.png`,
+    `adb -s ${deviceId} shell input tap 89 978`,
+    `adb -s ${deviceId} shell input tap 660 28`,
+    `adb -s ${deviceId} shell input tap 962 215`,
+    `adb -s ${deviceId} shell input text "${x}"`,
+    `adb -s ${deviceId} shell input tap 1169 215`,
+    `adb -s ${deviceId} shell input tap 1169 215`,
+    `adb -s ${deviceId} shell input text "${y}"`,
+    `adb -s ${deviceId} shell input tap 1331 212`,
+    `adb -s ${deviceId} shell input tap 1331 212`,
+    `adb -s ${deviceId} shell input tap 956 562`,
+    `adb -s ${deviceId} exec-out screencap -p > ./screenshot.png`,
   ];
 
   const titleCommands = {
     "Justice": [
-      `adb -s emulator-5554 shell input tap 440 592`,
-      `adb -s emulator-5554 shell input tap 954 958`,
-      `adb -s emulator-5554 shell input tap 89 978`,
-      `adb exec-out screencap -p > ./screenshot_justice.png`
+      `adb -s ${deviceId} shell input tap 440 592`,
+      `adb -s ${deviceId} shell input tap 954 958`,
+      `adb -s ${deviceId} shell input tap 89 978`,
+      `adb -s ${deviceId} exec-out screencap -p > ./screenshot_justice.png`
     ],
     "Duke": [
-      `adb -s emulator-5554 shell input tap 784 592`,
-      `adb -s emulator-5554 shell input tap 954 958`,
-      `adb -s emulator-5554 shell input tap 89 978`,
-      `adb exec-out screencap -p > ./screenshot_duke.png`
+      `adb -s ${deviceId} shell input tap 784 592`,
+      `adb -s ${deviceId} shell input tap 954 958`,
+      `adb -s ${deviceId} shell input tap 89 978`,
+      `adb -s ${deviceId} exec-out screencap -p > ./screenshot_duke.png`
     ],
     "Architect": [
-      `adb -s emulator-5554 shell input tap 1125 591`,
-      `adb -s emulator-5554 shell input tap 954 958`,
-      `adb -s emulator-5554 shell input tap 89 978`,
-      `adb exec-out screencap -p > ./screenshot_architect.png`
+      `adb -s ${deviceId} shell input tap 1125 591`,
+      `adb -s ${deviceId} shell input tap 954 958`,
+      `adb -s ${deviceId} shell input tap 89 978`,
+      `adb -s ${deviceId} exec-out screencap -p > ./screenshot_architect.png`
     ],
     "Scientist": [
-      `adb -s emulator-5554 shell input tap 1472 592`,
-      `adb -s emulator-5554 shell input tap 954 958`,
-      `adb -s emulator-5554 shell input tap 89 978`,
-      `adb exec-out screencap -p > ./screenshot_scientist.png`
+      `adb -s ${deviceId} shell input tap 1472 592`,
+      `adb -s ${deviceId} shell input tap 954 958`,
+      `adb -s ${deviceId} shell input tap 89 978`,
+      `adb -s ${deviceId} exec-out screencap -p > ./screenshot_scientist.png`
     ]
   };
 
@@ -300,6 +316,23 @@ async function runAdbCommand(x, y, title) {
 
       if (result.error) {
         console.log(result.error);
+        // Tap the home button to return
+        await new Promise((resolve, reject) => {
+          exec(`adb -s ${deviceId} shell input tap 89 978`, (error, stdout) => {
+            if (error) {
+              console.error(`Error returning to home: ${error.message}`);
+              reject(error);
+            } else {
+              console.log(`Returned to home: ${stdout}`);
+              resolve();
+            }
+          });
+        });
+
+        // Notify the user in Discord about the error
+        client.on("message", function (message) {
+          message.channel.send(`<@${userId}>, there was an error finding your city: ${result.error}`);
+        });
         processQueue(); // Continue with the next request
         return;
       }
@@ -308,7 +341,7 @@ async function runAdbCommand(x, y, title) {
       console.log(`Attempting to tap "Add Title" button at (${buttonX}, ${buttonY})`);
 
       await new Promise((resolve, reject) => {
-        exec(`adb -s emulator-5554 shell input tap ${buttonX} ${buttonY}`, (error, stdout) => {
+        exec(`adb -s ${deviceId} shell input tap ${buttonX} ${buttonY}`, (error, stdout) => {
           if (error) {
             console.error(`Error tapping "Add Title" button: ${error.message}`);
             reject(error);
@@ -337,3 +370,4 @@ async function runAdbCommand(x, y, title) {
     processQueue(); // Continue with the next request
   }
 }
+
