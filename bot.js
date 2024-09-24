@@ -29,7 +29,6 @@ client.once("ready", () => {
   });
 });
 
-
 const queues = {
   3311: [],
   3299: [],
@@ -122,8 +121,6 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-
-
 let timer;
 let remainingTime = 120;
 
@@ -177,9 +174,6 @@ async function processQueue(kingdom) {
     processQueue(kingdom);
   }
 }
-
-
-
 
 async function startTimer(collector) {
   timer = setInterval(() => {
