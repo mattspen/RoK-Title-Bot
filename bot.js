@@ -1,57 +1,8 @@
 import { Client, GatewayIntentBits as Intents } from "discord.js";
 import dotenv from "dotenv";
 import { exec } from "child_process";
-import fs from "fs";
 import mongoose from "mongoose";
 import User from "./models/User.js";
-import { REST, Routes } from "discord.js";
-
-async function resetCommands(clientId, guildId) {
-  const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
-
-  try {
-    // Delete all commands for the specified guild
-    const existingCommands = await rest.get(Routes.applicationGuildCommands(clientId, guildId));
-    const deletePromises = existingCommands.map(command =>
-      rest.delete(Routes.applicationGuildCommand(clientId, guildId, command.id))
-    );
-
-    await Promise.all(deletePromises);
-    console.log(`Deleted all commands for guild: ${guildId}`);
-
-    // Now register the new commands
-    await registerCommands(clientId, guildId);
-  } catch (error) {
-    console.error("Error resetting commands:", error);
-  }
-}
-
-// Add this function to register commands globally or per server
-async function registerCommands(clientId, guildId = null) {
-  const commands = [
-    // Define your commands here...
-  ];
-
-  const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
-
-  try {
-    console.log("Started refreshing application (/) commands.");
-
-    if (guildId) {
-      // For a specific guild
-      await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
-        body: commands,
-      });
-    } else {
-      // For global use
-      await rest.put(Routes.applicationCommands(clientId), { body: commands });
-    }
-
-    console.log("Successfully reloaded application (/) commands.");
-  } catch (error) {
-    console.error(error);
-  }
-}
 
 dotenv.config();
 
@@ -75,9 +26,6 @@ client.once("ready", () => {
   console.log("Connected to the following servers:");
   client.guilds.cache.forEach((guild) => {
     console.log(`- ${guild.name} (ID: ${guild.id}, Members: ${guild.memberCount})`);
-
-    // Reset commands for each guild the bot is connected to
-    resetCommands(client.user.id, guild.id);
   });
 });
 
@@ -204,7 +152,7 @@ async function processQueue(kingdom) {
     await message.react('✅');
 
     const filter = (reaction, user) => reaction.emoji.name === '✅' && user.id === userId;
-    const collector = message.createReactionCollector({ filter, time: 120 * 1000 });
+    const collector = message.createReactionCollector({ filter, time: 300 * 1000 });
 
     remainingTime = 120;
 
