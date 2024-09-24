@@ -143,7 +143,7 @@ async function processQueue(kingdom) {
 
   try {
     console.log(`Processing title for user ${userId} in kingdom ${kingdom}`);
-    await runAdbCommand(userId, x, y, title, kingdom);
+    await runAdbCommand(userId, x, y, title, kingdom, interaction);
 
     const message = await interaction.channel.send(`<@${userId}>, You're up! React with ✅ when done.`);
     await message.react('✅');
@@ -187,7 +187,7 @@ async function startTimer(collector) {
   }, 1000);
 }
 
-async function runAdbCommand(userId, x, y, title, kingdom) {
+async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
   let deviceId;
 
   if (kingdom === 3311) {
@@ -262,11 +262,10 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
   try {
     await executeCommandWithDelay(initialCommands, 0);
 
-    // Call Python script to check for the "Add Title" button
     exec('python ./check_title.py', async (error, stdout) => {
       if (error) {
         console.error(`Error executing Python script: ${error.message}`);
-        processQueue(); // Continue with the next request
+        processQueue();
         return;
       }
 
@@ -280,8 +279,15 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
       }
 
       if (result.error) {
-        console.log("Title button not found. Checking for connection loss...");
-
+        console.log("Hmm, looks like there is an issue. Checking for connection loss...");
+        try {
+          await interaction.channel.send({
+            content: `<@${userId}>, Title button not found. Checking for connection loss...`,
+            files: ['./screenshot.png']
+          });
+        } catch (err) {
+          console.error('Error sending message with screenshot:', err);
+        }
         // Take another screenshot for connection-loss check
         exec(`adb -s ${deviceId} exec-out screencap -p > ./screenshot_connection.png`, async (error) => {
           if (error) {
@@ -330,6 +336,13 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
               await interaction.channel.send(`<@${userId}>, Connection lost. Please check and try again.`);
             } else {
               console.log("No connection loss detected. Please try again.");
+              exec(`adb -s ${deviceId} shell input tap 89 978`, (error, stdout) => {
+                if (error) {
+                  console.error(`Error returning home: ${error.message}`);
+                } else {
+                  console.log(`Tapped "Add Title" button: ${stdout}`);
+                }
+              });
             }
 
             processQueue(); // Continue with the next request

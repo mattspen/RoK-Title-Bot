@@ -3,7 +3,7 @@ import cv2
 import json
 
 def find_add_title_button():
-    screenshot_path = 'test.png'  # Updated to check text.png
+    screenshot_path = 'screenshot.png'  # Updated to check text.png
     template_path = './resources/add-title-button.png'
 
     # Load the screenshot
@@ -34,7 +34,7 @@ def find_add_title_button():
         return None
 
 def check_negative_titles():
-    screenshot_path = 'test.png'  # Updated to check text.png
+    screenshot_path = 'screenshot.png'  # Updated to check text.png
     negative_titles = [
         './resources/exile_icon.png',
         './resources/fool_icon.png',
