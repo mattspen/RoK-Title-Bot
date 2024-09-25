@@ -258,30 +258,6 @@ async function startTimer(collector, remainingTime) {
   return timer;
 }
 
-// Function to find the scout button
-async function findScoutButton() {
-  return new Promise((resolve) => {
-    exec('python ./check_scout.py', (error, stdout) => {
-      if (error) {
-        console.error(`Error executing find scout button script: ${error.message}`);
-        return resolve({ success: false, error: 'Find scout button script error' });
-      }
-
-      console.log("Scout button script output:", stdout);
-
-      let result;
-      try {
-        result = JSON.parse(stdout);
-      } catch (err) {
-        console.error('Error parsing scout button output:', err);
-        return resolve({ success: false, error: 'Scout button JSON parse error' });
-      }
-
-      resolve(result);
-    });
-  });
-}
-
 
 async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
   let deviceId;
@@ -312,25 +288,25 @@ async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
   ];
 
   const titleCommands = {
-    "Justice": [
+    Justice: [
       `adb -s ${deviceId} shell input tap 440 592`,
       `adb -s ${deviceId} shell input tap 954 958`,
       `adb -s ${deviceId} exec-out screencap -p > ./screenshot_justice.png`,
       `adb -s ${deviceId} shell input tap 89 978`,
     ],
-    "Duke": [
+    Duke: [
       `adb -s ${deviceId} shell input tap 784 592`,
       `adb -s ${deviceId} shell input tap 954 958`,
       `adb -s ${deviceId} exec-out screencap -p > ./screenshot_duke.png`,
       `adb -s ${deviceId} shell input tap 89 978`,
     ],
-    "Architect": [
+    Architect: [
       `adb -s ${deviceId} shell input tap 1125 591`,
       `adb -s ${deviceId} shell input tap 954 958`,
       `adb -s ${deviceId} exec-out screencap -p > ./screenshot_architect.png`,
       `adb -s ${deviceId} shell input tap 89 978`,
     ],
-    "Scientist": [
+    Scientist: [
       `adb -s ${deviceId} shell input tap 1472 592`,
       `adb -s ${deviceId} shell input tap 954 958`,
       `adb -s ${deviceId} exec-out screencap -p > ./screenshot_scientist.png`,
@@ -339,9 +315,7 @@ async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
   };
 
   async function executeCommandWithDelay(commands, index) {
-    if (index >= commands.length) return;
-
-    console.log(`Executing command: ${commands[index]}`);
+    if (index >= commands.length) return Promise.resolve(); // Resolve the promise when all commands are done
 
     return new Promise((resolve, reject) => {
       exec(commands[index], (error, stdout) => {
@@ -350,175 +324,85 @@ async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
           reject(error);
           return;
         }
-        setTimeout(() => executeCommandWithDelay(commands, index + 1).then(resolve).catch(reject), 1000);
+
+        // Add a delay before executing the next command
+        setTimeout(() => {
+          executeCommandWithDelay(commands, index + 1).then(resolve).catch(reject); // Resolve after all commands
+        }, 1000); // 1 second delay
       });
     });
   }
+
 
   try {
     await executeCommandWithDelay(initialCommands, 0);
 
-    // Call findScoutButton and wait for its result
-    const scoutResult = await findScoutButton();
-    console.log("Scout button result:", scoutResult);
-
-    if (scoutResult.success === false) {
-      console.error(scoutResult.error);
-      return scoutResult;
-    }
-
-    const scoutButtonX = scoutResult.x; // Assuming the output contains x coordinate
-    const scoutButtonY = scoutResult.y; // Assuming the output contains y coordinate
-    const offsetY = 50; // Offset to click above the scout button (adjust as needed)
-
-    // Calculate new click coordinates
-    const clickX = scoutButtonX;
-    const clickY = scoutButtonY - offsetY; // Click above the scout button
-
-    console.log(`Clicking at (${clickX}, ${clickY}) above the scout button`);
-
-    // Perform the click action using the calculated coordinates
-    await new Promise((resolve, reject) => {
-      exec(`adb -s ${deviceId} shell input tap ${clickX} ${clickY}`, (error, stdout) => {
-        if (error) {
-          console.error(`Error clicking at (${clickX}, ${clickY}): ${error.message}`);
-          reject(error);
-        } else {
-          console.log(`Clicked at (${clickX}, ${clickY}): ${stdout}`);
-          resolve();
-        }
-      });
-    });
-
-    // Execute the title check
-    return new Promise((resolve) => {
-      exec('python ./check_title.py', async (error, stdout) => {
+    const titleCheckResult = await new Promise((resolve) => {
+      exec('python ./check_title.py', (error, stdout) => {
         if (error) {
           console.error(`Error executing Python script: ${error.message}`);
-          resolve({ success: false, error: 'Python script error' });
+          resolve({ success: false, error: 'Python script execution error' });
           return;
         }
 
-        console.log("Python script output:", stdout); // Log raw output
+        console.log('Raw output from Python script:', stdout);
+
+        const lines = stdout.split('\n').filter(line => line.trim() !== '');
+        let jsonLine = lines[lines.length - 1];
 
         let result;
         try {
-          result = JSON.parse(stdout); // Parse the output
+          result = JSON.parse(jsonLine.trim());
         } catch (err) {
-          console.error('Error parsing Python script output:', err);
-          resolve({ success: false, error: 'JSON parse error' });
+          console.error('Error parsing JSON:', err);
+          resolve({ success: false, error: 'JSON parsing error' });
           return;
         }
 
         if (result.error) {
-          console.log("Hmm, looks like there is an issue. Checking for connection loss...");
-          await interaction.channel.send({
-            content: `<@${userId}>, Title button not found. Checking for connection loss...`,
-            files: ['./screenshot.png']
-          });
+          console.log(`Error from Python script: ${result.error}`);
+          resolve({ success: false, error: result.error });
+        } else {
+          console.log(`Coordinates received: ${result.coordinates.x}, ${result.coordinates.y}`);
 
-          // Check for connection loss
-          exec(`adb -s ${deviceId} exec-out screencap -p > ./screenshot_connection.png`, async (error) => {
+          // Execute the adb command to tap the screen
+          exec(`adb -s ${deviceId} shell input tap ${result.coordinates.x} ${result.coordinates.y}`, (error) => {
             if (error) {
-              console.error(`Error taking connection-loss screenshot: ${error.message}`);
-              resolve({ success: false, error: 'Connection loss screenshot error' });
-              return;
+              console.error(`Error executing adb command: ${error.message}`);
+              resolve({ success: false, error: 'ADB command execution error' });
+            } else {
+              // Proceed with further processing using the coordinates
+              resolve({ success: true, coordinates: result.coordinates });
             }
-
-            exec('python ./check_connection_loss.py', async (connError, connStdout) => {
-              if (connError) {
-                console.error(`Error executing connection loss check script: ${connError.message}`);
-                resolve({ success: false, error: 'Connection loss check script error' });
-                return;
-              }
-
-              let connResult;
-              try {
-                connResult = JSON.parse(connStdout); // Parse the output
-              } catch (err) {
-                console.error('Error parsing connection-loss script output:', err);
-                resolve({ success: false, error: 'Connection loss JSON parse error' });
-                return;
-              }
-
-              const { x: lossButtonX, y: lossButtonY } = connResult;
-              try {
-                await new Promise((resolve, reject) => {
-                  exec(`adb -s ${deviceId} shell input tap ${lossButtonX} ${lossButtonY}`, (error, stdout) => {
-                    if (error) {
-                      console.error(`Error tapping "Add Title" button: ${error.message}`);
-                      reject(error);
-                    } else {
-                      console.log(`Tapped "Add Title" button: ${stdout}`);
-                      resolve();
-                    }
-                  });
-                });
-              } catch (err) {
-                console.error('Error tapping the connection-loss button:', err);
-                resolve({ success: false, error: 'Connection loss button tap error' });
-                return;
-              }
-
-              if (connResult.lostConnection) {
-                console.error("Connection lost detected.");
-                await interaction.channel.send(`<@${userId}>, Connection lost. Please check and try again.`);
-                resolve({ success: false, error: 'Connection lost' });
-              } else {
-                console.log("No connection loss detected. Please try again.");
-                exec(`adb -s ${deviceId} shell input tap 89 978`, (error, stdout) => {
-                  if (error) {
-                    console.error(`Error returning home: ${error.message}`);
-                  } else {
-                    console.log(`Tapped "Add Title" button: ${stdout}`);
-                  }
-                });
-                resolve({ success: false, error: 'Title button not found' });
-              }
-            });
           });
-
-          return; // Exit since we are handling connection loss
         }
-
-        const { x: buttonX, y: buttonY } = result;
-        console.log(`Attempting to tap "Add Title" button at (${buttonX}, ${buttonY})`);
-
-        try {
-          await new Promise((resolve, reject) => {
-            exec(`adb -s ${deviceId} shell input tap ${buttonX} ${buttonY}`, (error, stdout) => {
-              if (error) {
-                console.error(`Error tapping "Add Title" button: ${error.message}`);
-                reject(error);
-              } else {
-                console.log(`Tapped "Add Title" button: ${stdout}`);
-                resolve();
-              }
-            });
-          });
-        } catch (error) {
-          console.error('Error tapping the button:', error);
-          resolve({ success: false, error: 'Error tapping button' });
-          return;
-        }
-
-        // Execute title-specific commands
-        const commandsToRun = titleCommands[title] || [];
-        if (commandsToRun.length > 0) {
-          await executeCommandWithDelay(commandsToRun, 0);
-        }
-
-        await interaction.channel.send({
-          content: `<@${userId}>, Title added successfully!`,
-          files: ['./screenshot.png']
-        });
-
-        resolve({ success: true });
       });
     });
+
+    // Check the result of the title check
+    if (!titleCheckResult.success) {
+      await returnHome(deviceId);
+      return titleCheckResult; // Early return if title check failed
+    }
+
+    // Execute the title-specific commands after the title check with a delay
+    await executeCommandWithDelay(titleCommands[title], 0);
+
+    return { success: true };
+
   } catch (error) {
-    console.error('Error executing ADB command:', error);
-    return { success: false, error: 'ADB command execution error' };
+    console.error(`Error processing commands for ${userId}: ${error.message}`);
+    return { success: false, error: error.message };
   }
 }
 
+// Helper function to return home
+async function returnHome(deviceId) {
+  exec(`adb -s ${deviceId} shell input tap 89 978`, (error) => {
+    if (error) {
+      console.error(`Error returning home: ${error.message}`);
+    } else {
+      console.log(`Tapped Home button on ${deviceId}.`);
+    }
+  });
+}
