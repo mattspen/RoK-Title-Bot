@@ -29,16 +29,38 @@ client.once("ready", () => {
   });
 });
 
+// Queue and processing state for each kingdom and title
 const queues = {
-  3311: [],
-  3299: [],
+  3311: {
+    Duke: [],
+    Justice: [],
+    Architect: [],
+    Scientist: []
+  },
+  3299: {
+    Duke: [],
+    Justice: [],
+    Architect: [],
+    Scientist: []
+  }
 };
 
 let isProcessing = {
-  3311: false,
-  3299: false,
+  3311: {
+    Duke: false,
+    Justice: false,
+    Architect: false,
+    Scientist: false
+  },
+  3299: {
+    Duke: false,
+    Justice: false,
+    Architect: false,
+    Scientist: false
+  }
 };
 
+// Command handling remains the same
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isCommand()) return;
 
@@ -54,20 +76,20 @@ client.on("interactionCreate", async (interaction) => {
 
     try {
       const user = await User.findOne({ userId });
-
       if (user && user.username && user.kingdom) {
         const request = { interaction, userId, title, kingdom: user.kingdom, x, y };
 
-        // Add request to the kingdom-specific queue
-        queues[user.kingdom].push(request);
-        console.log(`Queue length for kingdom ${user.kingdom}: ${queues[user.kingdom].length}`);
+        // Add request to the title-specific queue for the user's kingdom
+        queues[user.kingdom][title].push(request);
+        console.log(`Queue length for ${title} in kingdom ${user.kingdom}: ${queues[user.kingdom][title].length}`);
 
-        if (!isProcessing[user.kingdom]) {
-          processQueue(user.kingdom);  // Process the queue for this kingdom
+        // If the title is not currently being processed, start processing the queue
+        if (!isProcessing[user.kingdom][title]) {
+          processQueue(user.kingdom, title);
         }
 
-        if (queues[user.kingdom].length > 1) {
-          await interaction.followUp(`<@${userId}>, Your title request has been added to the queue for kingdom ${user.kingdom}!`);
+        if (queues[user.kingdom][title].length > 1) {
+          await interaction.followUp(`<@${userId}>, Your title request has been added to the queue for ${title} in kingdom ${user.kingdom}!`);
         }
       } else {
         await interaction.followUp("You don't have a registered username and kingdom. Please use `/register [your_username] [your_kingdom]`.");
@@ -76,7 +98,6 @@ client.on("interactionCreate", async (interaction) => {
       console.error("Error fetching user:", error);
       await interaction.followUp("An error occurred while fetching your details. Please try again later.");
     }
-
   } else if (commandName === "titles") {
     const availableTitles = ["Duke", "Justice", "Architect", "Scientist"];
     await interaction.reply(`Available titles: ${availableTitles.join(", ")}`);
@@ -121,71 +142,146 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-let timer;
-let remainingTime = 120;
+// Global flag to ensure no two ADB commands run simultaneously for each kingdom and title
+let isAdbRunning = {};
 
-async function processQueue(kingdom) {
-  // Ensure the kingdom is initialized in queues
+// Initialize possible titles
+const titles = ["Duke", "Justice", "Architect", "Scientist"];
+
+// Timer duration for each title (in seconds)
+const titleDurations = {
+  Duke: 200,
+  Justice: 300,
+  Architect: 300,
+  Scientist: 200
+};
+
+// Define the remainingTime variable inside processQueue and pass it to startTimer
+async function processQueue(kingdom, title) {
+  // Ensure the necessary initializations
   if (!queues[kingdom]) {
-    queues[kingdom] = [];
-    isProcessing[kingdom] = false;
+    queues[kingdom] = {};
+    titles.forEach(t => queues[kingdom][t] = []);
+  }
+
+  if (!isProcessing[kingdom]) {
+    isProcessing[kingdom] = {};
+  }
+
+  if (isProcessing[kingdom][title] === undefined) {
+    isProcessing[kingdom][title] = false;
+  }
+
+  if (!queues[kingdom][title]) {
+    queues[kingdom][title] = [];
   }
 
   // Check if processing is already happening or the queue is empty
-  if (isProcessing[kingdom] || queues[kingdom].length === 0) {
-    isProcessing[kingdom] = false;
+  if (isProcessing[kingdom][title] || queues[kingdom][title].length === 0) {
+    isProcessing[kingdom][title] = false;
     return;
   }
 
-  isProcessing[kingdom] = true;
-  const request = queues[kingdom].shift();
-  const { interaction, x, y, title, userId } = request;
+  // Check if ADB is already running for this kingdom and title
+  if (isAdbRunning[kingdom]?.[title]) {
+    setTimeout(() => processQueue(kingdom, title), 1000); // Retry after 1 second
+    return;
+  }
+
+  isProcessing[kingdom][title] = true;
+  const request = queues[kingdom][title].shift();
+  const { interaction, x, y, userId } = request;
+
+  let timer; // Declare the timer variable here
 
   try {
-    console.log(`Processing title for user ${userId} in kingdom ${kingdom}`);
-    await runAdbCommand(userId, x, y, title, kingdom, interaction);
+    isAdbRunning[kingdom] = isAdbRunning[kingdom] || {};
+    isAdbRunning[kingdom][title] = true;
 
-    const message = await interaction.channel.send(`<@${userId}>, You're up! React with ✅ when done.`);
+    console.log(`Processing ${title} for user ${userId} in kingdom ${kingdom}`);
+
+    const adbResult = await runAdbCommand(userId, x, y, title, kingdom, interaction); // Run ADB command
+
+    if (!adbResult.success) {
+      throw new Error('Title button not found in the ADB command.');
+    }
+
+    const message = await interaction.channel.send(`<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`);
     await message.react('✅');
 
     const filter = (reaction, user) => reaction.emoji.name === '✅' && user.id === userId;
     const collector = message.createReactionCollector({ filter, time: 300 * 1000 });
 
-    remainingTime = 120;
+    // Use the predefined duration for the title
+    let remainingTime = titleDurations[title];
 
     collector.on('collect', () => {
-      remainingTime = 0;
-      clearInterval(timer);
-      collector.stop();
+      remainingTime = 0; // Set remaining time to 0 when collected
+      clearInterval(timer); // Clear the timer
+      collector.stop(); // Stop the collector
     });
 
     collector.on('end', collected => {
-      clearInterval(timer);
-      interaction.channel.send(collected.size === 0 ? `<@${userId}>, Times up!` : `Done reaction collected. Moving to the next request.`);
-      isProcessing[kingdom] = false;
-      processQueue(kingdom);
+      clearInterval(timer); // Stop the timer
+      interaction.channel.send(collected.size === 0 ? `<@${userId}>, Time's up!` : `Done reaction collected. Moving to the next request.`);
+
+      // Set a timeout of 10 seconds before setting ADB false
+      setTimeout(() => {
+        isProcessing[kingdom][title] = false;
+        isAdbRunning[kingdom][title] = false;
+        processQueue(kingdom, title);
+      }, 10000); // 10 second delay
     });
 
-    startTimer(collector);
+    timer = startTimer(collector, remainingTime); // Start the timer with the duration for the title
 
   } catch (error) {
-    console.error(`Error processing request for ${userId} in kingdom ${kingdom}: ${error.message}`);
-    isProcessing[kingdom] = false;
-    processQueue(kingdom);
+    console.error(`Error processing ${title} request for ${userId} in kingdom ${kingdom}: ${error.message}`);
+
+    // If the title button is not found or any other error happens, clear processing
+    isProcessing[kingdom][title] = false; // Ensure we clear processing state
+    isAdbRunning[kingdom][title] = false; // Ensure we clear ADB state
+    setTimeout(() => processQueue(kingdom, title), 10000); // Retry the queue after a delay
   }
 }
 
-async function startTimer(collector) {
-  timer = setInterval(() => {
+async function startTimer(collector, remainingTime) {
+  let timer = setInterval(() => {
     remainingTime -= 1;
     if (remainingTime <= 0) {
-      clearInterval(timer);
+      clearInterval(timer); // Clear the timer when time runs out
       if (collector && !collector.ended) {
-        collector.stop();
+        collector.stop(); // Stop the collector if not ended
       }
     }
-  }, 1000);
+  }, 1000); // Decrement every second
+  return timer;
 }
+
+// Function to find the scout button
+async function findScoutButton() {
+  return new Promise((resolve) => {
+    exec('python ./check_scout.py', (error, stdout) => {
+      if (error) {
+        console.error(`Error executing find scout button script: ${error.message}`);
+        return resolve({ success: false, error: 'Find scout button script error' });
+      }
+
+      console.log("Scout button script output:", stdout);
+
+      let result;
+      try {
+        result = JSON.parse(stdout);
+      } catch (err) {
+        console.error('Error parsing scout button output:', err);
+        return resolve({ success: false, error: 'Scout button JSON parse error' });
+      }
+
+      resolve(result);
+    });
+  });
+}
+
 
 async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
   let deviceId;
@@ -196,7 +292,7 @@ async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
     deviceId = 'emulator-5584';
   } else {
     console.error("Invalid kingdom. Please provide a valid kingdom.");
-    return;
+    return { success: false, error: "Invalid kingdom." };
   }
 
   console.log(`Running ADB command on ${deviceId} at coordinates (${x}, ${y}) for title: ${title}`);
@@ -239,7 +335,7 @@ async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
       `adb -s ${deviceId} shell input tap 954 958`,
       `adb -s ${deviceId} exec-out screencap -p > ./screenshot_scientist.png`,
       `adb -s ${deviceId} shell input tap 89 978`,
-    ]
+    ],
   };
 
   async function executeCommandWithDelay(commands, index) {
@@ -262,126 +358,167 @@ async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
   try {
     await executeCommandWithDelay(initialCommands, 0);
 
-    exec('python ./check_title.py', async (error, stdout) => {
-      if (error) {
-        console.error(`Error executing Python script: ${error.message}`);
-        processQueue();
-        return;
-      }
+    // Call findScoutButton and wait for its result
+    const scoutResult = await findScoutButton();
+    console.log("Scout button result:", scoutResult);
 
-      let result;
-      try {
-        result = JSON.parse(stdout); // Parse the output
-      } catch (err) {
-        console.error('Error parsing Python script output:', err);
-        processQueue();
-        return;
-      }
+    if (scoutResult.success === false) {
+      console.error(scoutResult.error);
+      return scoutResult;
+    }
 
-      if (result.error) {
-        console.log("Hmm, looks like there is an issue. Checking for connection loss...");
+    const scoutButtonX = scoutResult.x; // Assuming the output contains x coordinate
+    const scoutButtonY = scoutResult.y; // Assuming the output contains y coordinate
+    const offsetY = 50; // Offset to click above the scout button (adjust as needed)
+
+    // Calculate new click coordinates
+    const clickX = scoutButtonX;
+    const clickY = scoutButtonY - offsetY; // Click above the scout button
+
+    console.log(`Clicking at (${clickX}, ${clickY}) above the scout button`);
+
+    // Perform the click action using the calculated coordinates
+    await new Promise((resolve, reject) => {
+      exec(`adb -s ${deviceId} shell input tap ${clickX} ${clickY}`, (error, stdout) => {
+        if (error) {
+          console.error(`Error clicking at (${clickX}, ${clickY}): ${error.message}`);
+          reject(error);
+        } else {
+          console.log(`Clicked at (${clickX}, ${clickY}): ${stdout}`);
+          resolve();
+        }
+      });
+    });
+
+    // Execute the title check
+    return new Promise((resolve) => {
+      exec('python ./check_title.py', async (error, stdout) => {
+        if (error) {
+          console.error(`Error executing Python script: ${error.message}`);
+          resolve({ success: false, error: 'Python script error' });
+          return;
+        }
+
+        console.log("Python script output:", stdout); // Log raw output
+
+        let result;
         try {
+          result = JSON.parse(stdout); // Parse the output
+        } catch (err) {
+          console.error('Error parsing Python script output:', err);
+          resolve({ success: false, error: 'JSON parse error' });
+          return;
+        }
+
+        if (result.error) {
+          console.log("Hmm, looks like there is an issue. Checking for connection loss...");
           await interaction.channel.send({
             content: `<@${userId}>, Title button not found. Checking for connection loss...`,
             files: ['./screenshot.png']
           });
-        } catch (err) {
-          console.error('Error sending message with screenshot:', err);
-        }
-        // Take another screenshot for connection-loss check
-        exec(`adb -s ${deviceId} exec-out screencap -p > ./screenshot_connection.png`, async (error) => {
-          if (error) {
-            console.error(`Error taking connection-loss screenshot: ${error.message}`);
-            processQueue();
-            return;
-          }
 
-          exec('python ./check_connection_loss.py', async (connError, connStdout) => {
-            if (connError) {
-              console.error(`Error executing connection loss check script: ${connError.message}`);
-              processQueue();
+          // Check for connection loss
+          exec(`adb -s ${deviceId} exec-out screencap -p > ./screenshot_connection.png`, async (error) => {
+            if (error) {
+              console.error(`Error taking connection-loss screenshot: ${error.message}`);
+              resolve({ success: false, error: 'Connection loss screenshot error' });
               return;
             }
 
-            let connResult;
-            try {
-              connResult = JSON.parse(connStdout); // Parse the output
-            } catch (err) {
-              console.error('Error parsing connection-loss script output:', err);
-              processQueue();
-              return;
-            }
+            exec('python ./check_connection_loss.py', async (connError, connStdout) => {
+              if (connError) {
+                console.error(`Error executing connection loss check script: ${connError.message}`);
+                resolve({ success: false, error: 'Connection loss check script error' });
+                return;
+              }
 
-            const { x: buttonX, y: buttonY } = connResult;
-            try {
-              await new Promise((resolve, reject) => {
-                exec(`adb -s ${deviceId} shell input tap ${buttonX} ${buttonY}`, (error, stdout) => {
+              let connResult;
+              try {
+                connResult = JSON.parse(connStdout); // Parse the output
+              } catch (err) {
+                console.error('Error parsing connection-loss script output:', err);
+                resolve({ success: false, error: 'Connection loss JSON parse error' });
+                return;
+              }
+
+              const { x: lossButtonX, y: lossButtonY } = connResult;
+              try {
+                await new Promise((resolve, reject) => {
+                  exec(`adb -s ${deviceId} shell input tap ${lossButtonX} ${lossButtonY}`, (error, stdout) => {
+                    if (error) {
+                      console.error(`Error tapping "Add Title" button: ${error.message}`);
+                      reject(error);
+                    } else {
+                      console.log(`Tapped "Add Title" button: ${stdout}`);
+                      resolve();
+                    }
+                  });
+                });
+              } catch (err) {
+                console.error('Error tapping the connection-loss button:', err);
+                resolve({ success: false, error: 'Connection loss button tap error' });
+                return;
+              }
+
+              if (connResult.lostConnection) {
+                console.error("Connection lost detected.");
+                await interaction.channel.send(`<@${userId}>, Connection lost. Please check and try again.`);
+                resolve({ success: false, error: 'Connection lost' });
+              } else {
+                console.log("No connection loss detected. Please try again.");
+                exec(`adb -s ${deviceId} shell input tap 89 978`, (error, stdout) => {
                   if (error) {
-                    console.error(`Error tapping "Add Title" button: ${error.message}`);
-                    reject(error);
+                    console.error(`Error returning home: ${error.message}`);
                   } else {
                     console.log(`Tapped "Add Title" button: ${stdout}`);
-                    resolve();
                   }
                 });
-              });
-            } catch (err) {
-              console.error('Error tapping the connection-loss button:', err);
-              processQueue();
-              return;
-            }
-
-            if (connResult.lostConnection) {
-              console.error("Connection lost detected.");
-              await interaction.channel.send(`<@${userId}>, Connection lost. Please check and try again.`);
-            } else {
-              console.log("No connection loss detected. Please try again.");
-              exec(`adb -s ${deviceId} shell input tap 89 978`, (error, stdout) => {
-                if (error) {
-                  console.error(`Error returning home: ${error.message}`);
-                } else {
-                  console.log(`Tapped "Add Title" button: ${stdout}`);
-                }
-              });
-            }
-
-            processQueue(); // Continue with the next request
+                resolve({ success: false, error: 'Title button not found' });
+              }
+            });
           });
+
+          return; // Exit since we are handling connection loss
+        }
+
+        const { x: buttonX, y: buttonY } = result;
+        console.log(`Attempting to tap "Add Title" button at (${buttonX}, ${buttonY})`);
+
+        try {
+          await new Promise((resolve, reject) => {
+            exec(`adb -s ${deviceId} shell input tap ${buttonX} ${buttonY}`, (error, stdout) => {
+              if (error) {
+                console.error(`Error tapping "Add Title" button: ${error.message}`);
+                reject(error);
+              } else {
+                console.log(`Tapped "Add Title" button: ${stdout}`);
+                resolve();
+              }
+            });
+          });
+        } catch (error) {
+          console.error('Error tapping the button:', error);
+          resolve({ success: false, error: 'Error tapping button' });
+          return;
+        }
+
+        // Execute title-specific commands
+        const commandsToRun = titleCommands[title] || [];
+        if (commandsToRun.length > 0) {
+          await executeCommandWithDelay(commandsToRun, 0);
+        }
+
+        await interaction.channel.send({
+          content: `<@${userId}>, Title added successfully!`,
+          files: ['./screenshot.png']
         });
 
-        return; // Exit since we are handling connection loss
-      }
-
-      const { x: buttonX, y: buttonY } = result;
-      console.log(`Attempting to tap "Add Title" button at (${buttonX}, ${buttonY})`);
-
-      await new Promise((resolve, reject) => {
-        exec(`adb -s ${deviceId} shell input tap ${buttonX} ${buttonY}`, (error, stdout) => {
-          if (error) {
-            console.error(`Error tapping "Add Title" button: ${error.message}`);
-            reject(error);
-          } else {
-            console.log(`Tapped "Add Title" button: ${stdout}`);
-            resolve();
-          }
-        });
+        resolve({ success: true });
       });
-
-      // Wait for 2 seconds before executing titleCommands
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Execute commands for the selected title
-      if (titleCommands[title]) {
-        await executeCommandWithDelay(titleCommands[title], 0);
-      } else {
-        console.error(`No commands found for title: ${title}`);
-      }
-
-      processQueue(); // Continue with the next request
     });
   } catch (error) {
-    console.error("Error during ADB command execution:", error);
-    processQueue(); // Continue with the next request
+    console.error('Error executing ADB command:', error);
+    return { success: false, error: 'ADB command execution error' };
   }
 }
 
