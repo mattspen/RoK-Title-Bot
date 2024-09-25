@@ -313,9 +313,9 @@ async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
   let deviceId;
 
   if (kingdom === 3311) {
-    deviceId = 'emulator-5554';
+    deviceId = 'emulator-5574';
   } else if (kingdom === 3299) {
-    deviceId = 'emulator-5584';
+    deviceId = 'emulator-5554';
   } else {
     console.error("Invalid kingdom. Please provide a valid kingdom.");
     return { success: false, error: "Invalid kingdom." };
