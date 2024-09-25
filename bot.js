@@ -67,17 +67,15 @@ client.on("interactionCreate", async (interaction) => {
   const { commandName } = interaction;
 
   if (commandName === "title") {
-    const userId = interaction.options.getUser("user")?.id;
+    const userId = interaction.options.getUser("user")?.id || interaction.user.id; // Use interaction userId if not specified
     const title = interaction.options.getString("title");
-    const x = interaction.options.getInteger("x");
-    const y = interaction.options.getInteger("y");
 
     await interaction.reply("Processing your title request...");
 
     try {
       const user = await User.findOne({ userId });
-      if (user && user.username && user.kingdom) {
-        const request = { interaction, userId, title, kingdom: user.kingdom, x, y };
+      if (user && user.username && user.kingdom && user.x != null && user.y != null) {
+        const request = { interaction, userId, title, kingdom: user.kingdom, x: user.x, y: user.y };
 
         // Add request to the title-specific queue for the user's kingdom
         queues[user.kingdom][title].push(request);
@@ -92,7 +90,7 @@ client.on("interactionCreate", async (interaction) => {
           await interaction.followUp(`<@${userId}>, Your title request has been added to the queue for ${title} in kingdom ${user.kingdom}!`);
         }
       } else {
-        await interaction.followUp("You don't have a registered username and kingdom. Please use `/register [your_username] [your_kingdom]`.");
+        await interaction.followUp("You haven't registered your username, coordinates, and kingdom. Please use `/register [your_username] [x] [y] [your_kingdom]`.");
       }
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -101,7 +99,6 @@ client.on("interactionCreate", async (interaction) => {
   } else if (commandName === "titles") {
     const availableTitles = ["Duke", "Justice", "Architect", "Scientist"];
     await interaction.reply(`Available titles: ${availableTitles.join(", ")}`);
-
   } else if (commandName === "me") {
     const userId = interaction.user.id;
 
@@ -116,10 +113,11 @@ client.on("interactionCreate", async (interaction) => {
       console.error("Error fetching user:", error);
       await interaction.reply("An error occurred while fetching your details. Please try again later.");
     }
-
   } else if (commandName === "register") {
     const username = interaction.options.getString("username");
-    const kingdom = interaction.options.getString("kingdom");
+    const kingdom = interaction.options.getInteger("kingdom");
+    const x = interaction.options.getInteger("x");
+    const y = interaction.options.getInteger("y");
     const userId = interaction.user.id;
 
     try {
@@ -128,16 +126,68 @@ client.on("interactionCreate", async (interaction) => {
       if (user) {
         user.username = username;
         user.kingdom = kingdom;
+        user.x = x;
+        user.y = y;
         await user.save();
-        await interaction.reply(`Your username has been updated to "${username}" and kingdom to "${kingdom}"!`);
+        await interaction.reply(`Your details have been updated: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`);
       } else {
-        const newUser = new User({ userId, username, kingdom });
+        const newUser = new User({ userId, username, kingdom, x, y });
         await newUser.save();
-        await interaction.reply(`Your username "${username}" and kingdom "${kingdom}" have been registered!`);
+        await interaction.reply(`Your details have been registered: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`);
       }
     } catch (error) {
       console.error("Error registering user:", error);
-      await interaction.reply("An error occurred while registering your username and kingdom. Please try again later.");
+      await interaction.reply("An error occurred while registering your details. Please try again later.");
+    }
+  }
+});
+
+
+// Handle message input for title requests
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return; // Ignore bot messages
+
+  // Define the mapping between the letters and the titles
+  const titleMapping = {
+    'd': 'duke',
+    'j': 'justice',
+    'a': 'architect',
+    's': 'scientist',
+  };
+
+  const commandKey = message.content.toLowerCase(); // Get the lowercase message content
+
+  if (titleMapping[commandKey]) {
+    const title = titleMapping[commandKey]; // Get the corresponding title for the key
+    const userId = message.author.id; // Get the user who sent the message
+
+    try {
+      // Simulate the logic that would happen in the /title command
+      const user = await User.findOne({ userId });
+
+      if (user && user.username && user.kingdom && user.x != null && user.y != null) {
+        const request = { interaction: null, userId, title, kingdom: user.kingdom, x: user.x, y: user.y };
+
+        // Add request to the title-specific queue for the user's kingdom
+        queues[user.kingdom][title].push(request);
+        console.log(`Queue length for ${title} in kingdom ${user.kingdom}: ${queues[user.kingdom][title].length}`);
+
+        // If the title is not currently being processed, start processing the queue
+        if (!isProcessing[user.kingdom][title]) {
+          processQueue(user.kingdom, title);
+        }
+
+        if (queues[user.kingdom][title].length > 1) {
+          message.reply(`<@${userId}>, Your title request has been added to the queue for ${title} in kingdom ${user.kingdom}!`);
+        } else {
+          message.reply(`Processing your title request for ${title}...`);
+        }
+      } else {
+        message.reply("You haven't registered your username, coordinates, and kingdom. Please use `/register [your_username] [x] [y] [your_kingdom]`.");
+      }
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      message.reply("An error occurred while fetching your details. Please try again later.");
     }
   }
 });

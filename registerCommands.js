@@ -10,20 +10,14 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds] // Required to access guilds
 });
 
-// Command to assign a title
+// Command to assign a title (only asking for title, user coordinates are fetched from DB)
 const assignTitleCommand = {
   name: "title",
-  description: "Assign a title to a user",
+  description: "Assign a title to yourself (coordinates are fetched from registration)",
   options: [
     {
-      name: "user",
-      description: "The user to assign the title to",
-      type: 6, // USER type
-      required: true,
-    },
-    {
       name: "title",
-      description: "The title to assign to the user",
+      description: "The title to assign",
       type: 3, // STRING type
       required: true,
       choices: [
@@ -32,18 +26,6 @@ const assignTitleCommand = {
         { name: "Architect", value: "Architect" },
         { name: "Scientist", value: "Scientist" },
       ],
-    },
-    {
-      name: "x",
-      description: "X coordinate",
-      type: 4, // INTEGER type
-      required: true,
-    },
-    {
-      name: "y",
-      description: "Y coordinate",
-      type: 4, // INTEGER type
-      required: true,
     },
   ],
 };
@@ -55,13 +37,13 @@ const showTitlesCommand = {
 
 const meCommand = {
   name: "me",
-  description: "Get or register your username",
+  description: "Get or register your username and kingdom",
 };
 
-// Command to register a username with a 4-digit kingdom
+// Command to register a user with username, kingdom, and x and y coordinates
 const registrationCommand = {
   name: "register",
-  description: "Register your username and kingdom",
+  description: "Register your username, kingdom, and coordinates",
   options: [
     {
       name: "username",
@@ -72,7 +54,19 @@ const registrationCommand = {
     {
       name: "kingdom",
       description: "Your kingdom (must be 4 digits)",
-      type: 3, // INTEGER type
+      type: 4, // INTEGER type
+      required: true,
+    },
+    {
+      name: "x",
+      description: "Your X coordinate",
+      type: 4, // INTEGER type
+      required: true,
+    },
+    {
+      name: "y",
+      description: "Your Y coordinate",
+      type: 4, // INTEGER type
       required: true,
     },
   ],

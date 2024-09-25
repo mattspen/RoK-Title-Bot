@@ -21,6 +21,16 @@ const userSchema = new mongoose.Schema({
       message: props => `${props.value} is not a valid 4-digit kingdom number!`
     },
   },
+  x: {
+    type: Number,
+    required: true, // Optional: Set to true if this field should be required
+    min: 0, // Optional: Validate that x is a non-negative value
+  },
+  y: {
+    type: Number,
+    required: true, // Optional: Set to true if this field should be required
+    min: 0, // Optional: Validate that y is a non-negative value
+  },
 });
 
 const User = mongoose.model("User", userSchema);
