@@ -49,10 +49,6 @@ def check_home():
         "error": None if best_match["match"] else "Home coordinates not found."
     }
 
-    # Save the result for debugging (optional)
-    with open('check_home_result.json', 'w') as f:
-        json.dump(result, f)
-
     return result
 
 if __name__ == "__main__":

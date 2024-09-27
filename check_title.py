@@ -3,7 +3,7 @@ import cv2
 import json
 
 def find_add_title_button():
-    screenshot_path = 'screenshot.png'
+    screenshot_path = './screenshot.png'
     template_path = './resources/add-title-button.png'
 
     # Load the screenshot
@@ -98,7 +98,7 @@ def check_negative_titles(screenshot_path, coordinates):
         _, max_val, _, max_loc = cv2.minMaxLoc(res)
 
         # Define a threshold for match acceptance
-        threshold = 0.7
+        threshold = 0.75
 
         # If a match is found, return an error message
         if max_val >= threshold:
@@ -129,7 +129,7 @@ if __name__ == "__main__":
             exit(1)
         else:
             response = {
-                 "coordinates": title_check_result["coordinates"]
+                "coordinates": coordinates
             }
             print(json.dumps(response))
 

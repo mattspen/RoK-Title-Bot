@@ -399,12 +399,14 @@ async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
     return { success: false, error: "Invalid kingdom." };
   }
 
-  const isHome = await checkIfAtHome(deviceId, interaction, userId);
-  if (!isHome) {
-    console.log("Not at home. Returning home before processing the request.");
-    await returnHome(deviceId);
-    // Add a 2-second delay to allow for animation
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+  if (!isAdbRunning[kingdom]?.[title]) {
+    const isHome = await checkIfAtHome(deviceId, interaction, userId);
+    if (!isHome) {
+      console.log("Not at home. Returning home before processing the request.");
+      await returnHome(deviceId);
+      // Add a 2-second delay to allow for animation
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
   }
 
   console.log(
