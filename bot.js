@@ -182,20 +182,36 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return; // Ignore bot messages
-  console.log("Message received:", message.content); // Log the received message content
 
   // Define the mapping between the letters and the titles
   const titleMapping = {
     d: "Duke",
+    duke: "Duke",
+    duk: "Duke",
+    du: "Duke",
     j: "Justice",
+    justice: "Justice",
+    just: "Justice",
+    jus: "Justice",
     a: "Architect",
+    architect: "Architect",
+    arch: "Architect",
+    arc: "Architect",
     s: "Scientist",
+    scientist: "Scientist",
+    scien: "Scientist",
+    scie: "Scientist",
+    sci: "Scientist",
   };
 
-  const commandKey = message.content.trim().toLowerCase(); // Get the lowercase message content after trimming
+  // Normalize the input to lowercase
+  const normalizeInput = (input) => {
+    return input.trim().toLowerCase(); // Convert to lowercase for case-insensitive matching
+  };
+
+  const commandKey = normalizeInput(message.content); // Normalize the message content
 
   if (titleMapping[commandKey]) {
     const title = titleMapping[commandKey]; // Get the corresponding title for the key
@@ -206,7 +222,13 @@ client.on("messageCreate", async (message) => {
       const user = await User.findOne({ userId });
       console.log("User fetched:", user); // Log the fetched user object
 
-      if (user && user.username && user.kingdom && user.x != null && user.y != null) {
+      if (
+        user &&
+        user.username &&
+        user.kingdom &&
+        user.x != null &&
+        user.y != null
+      ) {
         const request = {
           interaction: null,
           userId,
@@ -219,7 +241,11 @@ client.on("messageCreate", async (message) => {
 
         // Add request to the title-specific queue for the user's kingdom
         queues[user.kingdom][title].push(request);
-        console.log(`Queue length for ${title} in kingdom ${user.kingdom}: ${queues[user.kingdom][title].length}`);
+        console.log(
+          `Queue length for ${title} in kingdom ${user.kingdom}: ${
+            queues[user.kingdom][title].length
+          }`
+        );
 
         // If the title is not currently being processed, start processing the queue
         if (!isProcessing[user.kingdom][title]) {
@@ -227,16 +253,22 @@ client.on("messageCreate", async (message) => {
         }
 
         if (queues[user.kingdom][title].length > 1) {
-          message.reply(`<@${userId}>, Your title request has been added to the queue for ${title} in kingdom ${user.kingdom}!`);
+          message.reply(
+            `<@${userId}>, Your title request has been added to the queue for ${title} in kingdom ${user.kingdom}!`
+          );
         } else {
           message.reply(`Processing your title request for ${title}...`);
         }
       } else {
-        message.reply("You haven't registered your username, coordinates, and kingdom. Please use `/register [your_username] [x] [y] [your_kingdom]`.");
+        message.reply(
+          "You haven't registered your username, coordinates, and kingdom. Please use `/register [your_username] [x] [y] [your_kingdom]`."
+        );
       }
     } catch (error) {
       console.error("Error fetching user:", error);
-      message.reply("An error occurred while fetching your details. Please try again later.");
+      message.reply(
+        "An error occurred while fetching your details. Please try again later."
+      );
     }
   } else {
     console.log("No matching title found for key:", commandKey); // Log if no match is found
@@ -265,22 +297,20 @@ function runRandomAdbCommands(deviceId) {
   const centerX = 960; // Center X for 1080p
   const centerY = 540; // Center Y for 1080p
   const offsetRange = 100; // Range for random offset around the center
-  
+
   // Generate random coordinates around the center
   const x = getRandomInt(centerX - offsetRange, centerX + offsetRange);
   const y = getRandomInt(centerY - offsetRange, centerY + offsetRange);
 
   // Randomly choose between tap, double tap, or swipe
   const action = getRandomInt(1, 3);
-  
+
   if (action === 1) {
     // Tap action
     exec(`adb -s ${deviceId} shell input tap ${x} ${y}`, (error) => {
       if (error) {
         console.error(`Error tapping on ${deviceId}: ${error.message}`);
-      } else {
-        console.log(`Tapped on ${deviceId} at (${x}, ${y})`);
-      }
+      } 
     });
   } else if (action === 2) {
     // Double tap action
@@ -288,15 +318,14 @@ function runRandomAdbCommands(deviceId) {
       if (error) {
         console.error(`Error double-tapping on ${deviceId}: ${error.message}`);
       } else {
-        console.log(`Double tapped on ${deviceId} at (${x}, ${y})`);
         // Second tap after a short delay for double tap effect
         setTimeout(() => {
           exec(`adb -s ${deviceId} shell input tap ${x} ${y}`, (error) => {
             if (error) {
-              console.error(`Error double-tapping on ${deviceId}: ${error.message}`);
-            } else {
-              console.log(`Double tapped again on ${deviceId} at (${x}, ${y})`);
-            }
+              console.error(
+                `Error double-tapping on ${deviceId}: ${error.message}`
+              );
+            } 
           });
         }, 100); // 100 ms delay
       }
@@ -305,25 +334,30 @@ function runRandomAdbCommands(deviceId) {
     // Swipe action
     const x2 = getRandomInt(centerX - offsetRange, centerX + offsetRange);
     const y2 = getRandomInt(centerY - offsetRange, centerY + offsetRange);
-    exec(`adb -s ${deviceId} shell input swipe ${x} ${y} ${x2} ${y2}`, (error) => {
-      if (error) {
-        console.error(`Error swiping on ${deviceId}: ${error.message}`);
-      } else {        
-        // Return to the original position after the swipe
-        setTimeout(() => {
-          exec(`adb -s ${deviceId} shell input tap ${x} ${y}`, (error) => {
-            if (error) {
-              console.error(`Error returning to (${x}, ${y}) on ${deviceId}: ${error.message}`);
-            } 
-          });
-        }, 500); // Delay before returning (adjust if needed)
+    exec(
+      `adb -s ${deviceId} shell input swipe ${x} ${y} ${x2} ${y2}`,
+      (error) => {
+        if (error) {
+          console.error(`Error swiping on ${deviceId}: ${error.message}`);
+        } else {
+          // Return to the original position after the swipe
+          setTimeout(() => {
+            exec(`adb -s ${deviceId} shell input tap ${x} ${y}`, (error) => {
+              if (error) {
+                console.error(
+                  `Error returning to (${x}, ${y}) on ${deviceId}: ${error.message}`
+                );
+              }
+            });
+          }, 500); // Delay before returning (adjust if needed)
+        }
       }
-    });
+    );
   }
 }
 
 function runCheckState() {
-  exec('adb devices', (error, stdout, stderr) => {
+  exec("adb devices", (error, stdout, stderr) => {
     if (error) {
       console.error(`Error listing devices: ${error.message}`);
       return;
@@ -334,41 +368,44 @@ function runCheckState() {
     }
 
     const devices = stdout
-      .split('\n')
-      .filter(line => line.includes('\tdevice'))
-      .map(line => line.split('\t')[0]);
+      .split("\n")
+      .filter((line) => line.includes("\tdevice"))
+      .map((line) => line.split("\t")[0]);
 
     if (devices.length === 0) {
-      console.log('No devices found.');
+      console.log("No devices found.");
       return;
     }
 
-    devices.forEach(deviceId => {
+    devices.forEach((deviceId) => {
       // Take a screenshot before running the check_state.py script
-      exec(`adb -s ${deviceId} exec-out screencap -p > ./current_state_${deviceId}.png`, (error) => {
-        if (error) {
-          console.error(`Error taking screenshot on ${deviceId}: ${error.message}`);
-          return;
-        }
-
-        console.log(`Screenshot 'current_state_${deviceId}.png' taken successfully.`);
-        
-        // Run random ADB commands
-        runRandomAdbCommands(deviceId);
-        
-        // Run the check_state.py script after taking the screenshot
-        exec(`python check_state.py ${deviceId}`, (error, stdout, stderr) => {
+      exec(
+        `adb -s ${deviceId} exec-out screencap -p > ./current_state_${deviceId}.png`,
+        (error) => {
           if (error) {
-            console.error(`Error on ${deviceId}: ${error.message}`);
+            console.error(
+              `Error taking screenshot on ${deviceId}: ${error.message}`
+            );
             return;
           }
-          if (stderr) {
-            console.error(`Stderr on ${deviceId}: ${stderr}`);
-            return;
-          }
-          console.log(`Output on ${deviceId}: ${stdout}`);
-        });
-      });
+
+          // Run random ADB commands
+          runRandomAdbCommands(deviceId);
+
+          // Run the check_state.py script after taking the screenshot
+          exec(`python check_state.py ${deviceId}`, (error, stdout, stderr) => {
+            if (error) {
+              console.error(`Error on ${deviceId}: ${error.message}`);
+              return;
+            }
+            if (stderr) {
+              console.error(`Stderr on ${deviceId}: ${stderr}`);
+              return;
+            }
+            console.log(`Output on ${deviceId}: ${stdout}`);
+          });
+        }
+      );
     });
   });
 }
@@ -445,13 +482,13 @@ async function processQueue(kingdom, title) {
     }
 
     // Rename the message variable for clarity
-    const notificationMessage = interaction 
+    const notificationMessage = interaction
       ? await interaction.channel.send(
-        `<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`
-      )
+          `<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`
+        )
       : await message.channel.send(
-        `<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`
-      );
+          `<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`
+        );
 
     await notificationMessage.react("✅"); // Use the renamed variable
 
@@ -508,7 +545,6 @@ async function processQueue(kingdom, title) {
   }
 }
 
-
 async function startTimer(collector, remainingTime) {
   let timer = setInterval(() => {
     remainingTime -= 1;
@@ -522,7 +558,15 @@ async function startTimer(collector, remainingTime) {
   return timer;
 }
 
-async function runAdbCommand(userId, x, y, title, kingdom, interaction, message) {
+async function runAdbCommand(
+  userId,
+  x,
+  y,
+  title,
+  kingdom,
+  interaction,
+  message
+) {
   let deviceId;
 
   if (kingdom === 3311) {
@@ -537,33 +581,43 @@ async function runAdbCommand(userId, x, y, title, kingdom, interaction, message)
   // Run the check_state.py script before doing anything else
   const stateCheckResult = await new Promise((resolve) => {
     // Take a screenshot before running the check_state.py script
-    exec(`adb -s ${deviceId} exec-out screencap -p > ./current_state_${deviceId}.png`, (error) => {
-      if (error) {
-        console.error(`Error taking screenshot on ${deviceId}: ${error.message}`);
-        resolve({ success: false, error: "Screenshot error" });
-        return;
-      }
-
-      console.log(`Screenshot 'current_state_${deviceId}.png' taken successfully.`);
-      
-      // Run the check_state.py script after taking the screenshot
-      exec(`python check_state.py ${deviceId}`, (error, stdout, stderr) => {
+    exec(
+      `adb -s ${deviceId} exec-out screencap -p > ./current_state_${deviceId}.png`,
+      (error) => {
         if (error) {
-          console.error(`Error running check_state.py: ${error.message}`);
-          resolve({ success: false, error: "State check script execution error" });
+          console.error(
+            `Error taking screenshot on ${deviceId}: ${error.message}`
+          );
+          resolve({ success: false, error: "Screenshot error" });
           return;
         }
-        if (stderr) {
-          console.error(`Stderr from check_state.py: ${stderr}`);
-          resolve({ success: false, error: "State check script stderr" });
-          return;
-        }
-        console.log(`Output from check_state.py: ${stdout}`);
-        resolve({ success: true });
-      });
-    });
+
+        console.log(
+          `Screenshot 'current_state_${deviceId}.png' taken successfully.`
+        );
+
+        // Run the check_state.py script after taking the screenshot
+        exec(`python check_state.py ${deviceId}`, (error, stdout, stderr) => {
+          if (error) {
+            console.error(`Error running check_state.py: ${error.message}`);
+            resolve({
+              success: false,
+              error: "State check script execution error",
+            });
+            return;
+          }
+          if (stderr) {
+            console.error(`Stderr from check_state.py: ${stderr}`);
+            resolve({ success: false, error: "State check script stderr" });
+            return;
+          }
+          console.log(`Output from check_state.py: ${stdout}`);
+          resolve({ success: true });
+        });
+      }
+    );
   });
-   
+
   if (!stateCheckResult.success) {
     return stateCheckResult; // Early return if state check failed
   }
@@ -724,11 +778,15 @@ async function checkIfAtHome(deviceId, interaction, message, userId) {
       async (error) => {
         if (error) {
           console.error(`Error taking screenshot: ${error.message}`);
-            if (interaction) {
-            await interaction.channel.send(`<@${userId}>, the bot is down. Please try again later.`);
-            } else {
-            await message.channel.send(`<@${userId}>, the bot is down. Please try again later.`);
-            }
+          if (interaction) {
+            await interaction.channel.send(
+              `<@${userId}>, the bot is down. Please try again later.`
+            );
+          } else {
+            await message.channel.send(
+              `<@${userId}>, the bot is down. Please try again later.`
+            );
+          }
           return reject(false);
         }
 
