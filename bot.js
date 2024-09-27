@@ -534,6 +534,9 @@ async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
       return titleCheckResult; // Early return if title check failed
     }
 
+    // Set a delay of 1 second before executing the title-specific commands
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     // Execute the title-specific commands after the title check with a delay
     await executeCommandWithDelay(titleCommands[title], 0);
 
