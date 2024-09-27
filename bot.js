@@ -15,6 +15,7 @@ const client = new Client({
   intents: [
     Intents.Guilds,
     Intents.GuildMessages,
+    Intents.MessageContent,
     Intents.GuildMessageReactions,
     Intents.GuildMembers,
   ],
@@ -181,35 +182,31 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// Handle message input for title requests
+
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return; // Ignore bot messages
+  console.log("Message received:", message.content); // Log the received message content
 
   // Define the mapping between the letters and the titles
   const titleMapping = {
-    d: "duke",
-    j: "justice",
-    a: "architect",
-    s: "scientist",
+    d: "Duke",
+    j: "Justice",
+    a: "Architect",
+    s: "Scientist",
   };
 
-  const commandKey = message.content.toLowerCase(); // Get the lowercase message content
+  const commandKey = message.content.trim().toLowerCase(); // Get the lowercase message content after trimming
 
   if (titleMapping[commandKey]) {
     const title = titleMapping[commandKey]; // Get the corresponding title for the key
     const userId = message.author.id; // Get the user who sent the message
 
     try {
-      // Simulate the logic that would happen in the /title command
+      console.log("Fetching user with ID:", userId);
       const user = await User.findOne({ userId });
+      console.log("User fetched:", user); // Log the fetched user object
 
-      if (
-        user &&
-        user.username &&
-        user.kingdom &&
-        user.x != null &&
-        user.y != null
-      ) {
+      if (user && user.username && user.kingdom && user.x != null && user.y != null) {
         const request = {
           interaction: null,
           userId,
@@ -217,15 +214,12 @@ client.on("messageCreate", async (message) => {
           kingdom: user.kingdom,
           x: user.x,
           y: user.y,
+          message,
         };
 
         // Add request to the title-specific queue for the user's kingdom
         queues[user.kingdom][title].push(request);
-        console.log(
-          `Queue length for ${title} in kingdom ${user.kingdom}: ${
-            queues[user.kingdom][title].length
-          }`
-        );
+        console.log(`Queue length for ${title} in kingdom ${user.kingdom}: ${queues[user.kingdom][title].length}`);
 
         // If the title is not currently being processed, start processing the queue
         if (!isProcessing[user.kingdom][title]) {
@@ -233,23 +227,19 @@ client.on("messageCreate", async (message) => {
         }
 
         if (queues[user.kingdom][title].length > 1) {
-          message.reply(
-            `<@${userId}>, Your title request has been added to the queue for ${title} in kingdom ${user.kingdom}!`
-          );
+          message.reply(`<@${userId}>, Your title request has been added to the queue for ${title} in kingdom ${user.kingdom}!`);
         } else {
           message.reply(`Processing your title request for ${title}...`);
         }
       } else {
-        message.reply(
-          "You haven't registered your username, coordinates, and kingdom. Please use `/register [your_username] [x] [y] [your_kingdom]`."
-        );
+        message.reply("You haven't registered your username, coordinates, and kingdom. Please use `/register [your_username] [x] [y] [your_kingdom]`.");
       }
     } catch (error) {
       console.error("Error fetching user:", error);
-      message.reply(
-        "An error occurred while fetching your details. Please try again later."
-      );
+      message.reply("An error occurred while fetching your details. Please try again later.");
     }
+  } else {
+    console.log("No matching title found for key:", commandKey); // Log if no match is found
   }
 });
 
@@ -266,6 +256,135 @@ const titleDurations = {
   Architect: 300,
   Scientist: 200,
 };
+
+function getRandomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function runRandomAdbCommands(deviceId) {
+  const centerX = 960; // Center X for 1080p
+  const centerY = 540; // Center Y for 1080p
+  const offsetRange = 100; // Range for random offset around the center
+  
+  // Generate random coordinates around the center
+  const x = getRandomInt(centerX - offsetRange, centerX + offsetRange);
+  const y = getRandomInt(centerY - offsetRange, centerY + offsetRange);
+
+  // Randomly choose between tap, double tap, or swipe
+  const action = getRandomInt(1, 3);
+  
+  if (action === 1) {
+    // Tap action
+    exec(`adb -s ${deviceId} shell input tap ${x} ${y}`, (error) => {
+      if (error) {
+        console.error(`Error tapping on ${deviceId}: ${error.message}`);
+      } else {
+        console.log(`Tapped on ${deviceId} at (${x}, ${y})`);
+      }
+    });
+  } else if (action === 2) {
+    // Double tap action
+    exec(`adb -s ${deviceId} shell input tap ${x} ${y}`, (error) => {
+      if (error) {
+        console.error(`Error double-tapping on ${deviceId}: ${error.message}`);
+      } else {
+        console.log(`Double tapped on ${deviceId} at (${x}, ${y})`);
+        // Second tap after a short delay for double tap effect
+        setTimeout(() => {
+          exec(`adb -s ${deviceId} shell input tap ${x} ${y}`, (error) => {
+            if (error) {
+              console.error(`Error double-tapping on ${deviceId}: ${error.message}`);
+            } else {
+              console.log(`Double tapped again on ${deviceId} at (${x}, ${y})`);
+            }
+          });
+        }, 100); // 100 ms delay
+      }
+    });
+  } else {
+    // Swipe action
+    const x2 = getRandomInt(centerX - offsetRange, centerX + offsetRange);
+    const y2 = getRandomInt(centerY - offsetRange, centerY + offsetRange);
+    exec(`adb -s ${deviceId} shell input swipe ${x} ${y} ${x2} ${y2}`, (error) => {
+      if (error) {
+        console.error(`Error swiping on ${deviceId}: ${error.message}`);
+      } else {        
+        // Return to the original position after the swipe
+        setTimeout(() => {
+          exec(`adb -s ${deviceId} shell input tap ${x} ${y}`, (error) => {
+            if (error) {
+              console.error(`Error returning to (${x}, ${y}) on ${deviceId}: ${error.message}`);
+            } 
+          });
+        }, 500); // Delay before returning (adjust if needed)
+      }
+    });
+  }
+}
+
+function runCheckState() {
+  exec('adb devices', (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Error listing devices: ${error.message}`);
+      return;
+    }
+    if (stderr) {
+      console.error(`Stderr: ${stderr}`);
+      return;
+    }
+
+    const devices = stdout
+      .split('\n')
+      .filter(line => line.includes('\tdevice'))
+      .map(line => line.split('\t')[0]);
+
+    if (devices.length === 0) {
+      console.log('No devices found.');
+      return;
+    }
+
+    devices.forEach(deviceId => {
+      // Take a screenshot before running the check_state.py script
+      exec(`adb -s ${deviceId} exec-out screencap -p > ./current_state_${deviceId}.png`, (error) => {
+        if (error) {
+          console.error(`Error taking screenshot on ${deviceId}: ${error.message}`);
+          return;
+        }
+
+        console.log(`Screenshot 'current_state_${deviceId}.png' taken successfully.`);
+        
+        // Run random ADB commands
+        runRandomAdbCommands(deviceId);
+        
+        // Run the check_state.py script after taking the screenshot
+        exec(`python check_state.py ${deviceId}`, (error, stdout, stderr) => {
+          if (error) {
+            console.error(`Error on ${deviceId}: ${error.message}`);
+            return;
+          }
+          if (stderr) {
+            console.error(`Stderr on ${deviceId}: ${stderr}`);
+            return;
+          }
+          console.log(`Output on ${deviceId}: ${stdout}`);
+        });
+      });
+    });
+  });
+}
+
+setInterval(() => {
+  // Check if any ADB function is currently running
+  const isAnyAdbRunning = Object.values(isAdbRunning).some((kingdom) =>
+    Object.values(kingdom).some((isRunning) => isRunning)
+  );
+
+  if (!isAnyAdbRunning) {
+    runCheckState();
+  } else {
+    console.log("ADB functions are currently running. Skipping runCheckState.");
+  }
+}, 120000);
 
 // Define the remainingTime variable inside processQueue and pass it to startTimer
 async function processQueue(kingdom, title) {
@@ -301,7 +420,7 @@ async function processQueue(kingdom, title) {
 
   isProcessing[kingdom][title] = true;
   const request = queues[kingdom][title].shift();
-  const { interaction, x, y, userId } = request;
+  const { message, interaction, x, y, userId } = request;
 
   let timer; // Declare the timer variable here
 
@@ -317,21 +436,28 @@ async function processQueue(kingdom, title) {
       y,
       title,
       kingdom,
-      interaction
+      interaction,
+      message
     ); // Run ADB command
 
     if (!adbResult.success) {
       throw new Error("Title button not found in the ADB command.");
     }
 
-    const message = await interaction.channel.send(
-      `<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`
-    );
-    await message.react("✅");
+    // Rename the message variable for clarity
+    const notificationMessage = interaction 
+      ? await interaction.channel.send(
+        `<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`
+      )
+      : await message.channel.send(
+        `<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`
+      );
+
+    await notificationMessage.react("✅"); // Use the renamed variable
 
     const filter = (reaction, user) =>
       reaction.emoji.name === "✅" && user.id === userId;
-    const collector = message.createReactionCollector({
+    const collector = notificationMessage.createReactionCollector({
       filter,
       time: 300 * 1000,
     });
@@ -347,11 +473,19 @@ async function processQueue(kingdom, title) {
 
     collector.on("end", (collected) => {
       clearInterval(timer); // Stop the timer
-      interaction.channel.send(
-        collected.size === 0
-          ? `<@${userId}>, Time's up!`
-          : `Done reaction collected. Moving to the next request.`
-      );
+      if (interaction) {
+        interaction.channel.send(
+          collected.size === 0
+            ? `<@${userId}>, Time's up!`
+            : `Done reaction collected. Moving to the next request.`
+        );
+      } else {
+        message.channel.send(
+          collected.size === 0
+            ? `<@${userId}>, Time's up!`
+            : `Done reaction collected. Moving to the next request.`
+        );
+      }
 
       // Set a timeout of 10 seconds before setting ADB false
       setTimeout(() => {
@@ -374,6 +508,7 @@ async function processQueue(kingdom, title) {
   }
 }
 
+
 async function startTimer(collector, remainingTime) {
   let timer = setInterval(() => {
     remainingTime -= 1;
@@ -387,7 +522,7 @@ async function startTimer(collector, remainingTime) {
   return timer;
 }
 
-async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
+async function runAdbCommand(userId, x, y, title, kingdom, interaction, message) {
   let deviceId;
 
   if (kingdom === 3311) {
@@ -399,8 +534,42 @@ async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
     return { success: false, error: "Invalid kingdom." };
   }
 
+  // Run the check_state.py script before doing anything else
+  const stateCheckResult = await new Promise((resolve) => {
+    // Take a screenshot before running the check_state.py script
+    exec(`adb -s ${deviceId} exec-out screencap -p > ./current_state_${deviceId}.png`, (error) => {
+      if (error) {
+        console.error(`Error taking screenshot on ${deviceId}: ${error.message}`);
+        resolve({ success: false, error: "Screenshot error" });
+        return;
+      }
+
+      console.log(`Screenshot 'current_state_${deviceId}.png' taken successfully.`);
+      
+      // Run the check_state.py script after taking the screenshot
+      exec(`python check_state.py ${deviceId}`, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Error running check_state.py: ${error.message}`);
+          resolve({ success: false, error: "State check script execution error" });
+          return;
+        }
+        if (stderr) {
+          console.error(`Stderr from check_state.py: ${stderr}`);
+          resolve({ success: false, error: "State check script stderr" });
+          return;
+        }
+        console.log(`Output from check_state.py: ${stdout}`);
+        resolve({ success: true });
+      });
+    });
+  });
+   
+  if (!stateCheckResult.success) {
+    return stateCheckResult; // Early return if state check failed
+  }
+
   if (!isAdbRunning[kingdom]?.[title]) {
-    const isHome = await checkIfAtHome(deviceId, interaction, userId);
+    const isHome = await checkIfAtHome(deviceId, interaction, message, userId);
     if (!isHome) {
       console.log("Not at home. Returning home before processing the request.");
       await returnHome(deviceId);
@@ -547,7 +716,7 @@ async function runAdbCommand(userId, x, y, title, kingdom, interaction) {
   }
 }
 
-async function checkIfAtHome(deviceId, interaction, userId) {
+async function checkIfAtHome(deviceId, interaction, message, userId) {
   return new Promise((resolve, reject) => {
     // Take a screenshot before running the check_home.py script
     exec(
@@ -555,7 +724,11 @@ async function checkIfAtHome(deviceId, interaction, userId) {
       async (error) => {
         if (error) {
           console.error(`Error taking screenshot: ${error.message}`);
-          await interaction.channel.send(`<@${userId}>, the bot is down. Please try again later.`);
+            if (interaction) {
+            await interaction.channel.send(`<@${userId}>, the bot is down. Please try again later.`);
+            } else {
+            await message.channel.send(`<@${userId}>, the bot is down. Please try again later.`);
+            }
           return reject(false);
         }
 
