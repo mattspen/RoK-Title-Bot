@@ -4,42 +4,45 @@ import json
 
 def find_add_title_button():
     screenshot_path = './screenshot.png'
-    template_path = './resources/add-title-button.png'
+    template_paths = ['./resources/add-title-button.png', './resources/add-title-2-button.png']
 
     # Load the screenshot
     img_rgb = cv2.imread(screenshot_path)
     if img_rgb is None:
         return {"error": "screenshot.png not found or could not be opened"}
 
-    # Load the template
-    template = cv2.imread(template_path)
-    if template is None:
-        return {"error": f"{template_path} not found or could not be opened"}
-
-    # Convert images to grayscale for matching
+    # Convert screenshot to grayscale for matching
     img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
-    template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
 
-    # Perform template matching
-    res = cv2.matchTemplate(img_gray, template_gray, cv2.TM_CCOEFF_NORMED)
-    _, max_val, _, max_loc = cv2.minMaxLoc(res)
+    for template_path in template_paths:
+        # Load the template
+        template = cv2.imread(template_path)
+        if template is None:
+            continue
 
-    # Define a threshold for match acceptance
-    threshold = 0.65
+        # Convert template to grayscale
+        template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
 
-    # If a match is found, calculate the center coordinates
-    if max_val >= threshold:
-        h, w = template_gray.shape
-        center_x = int(max_loc[0] + w / 2)
-        center_y = int(max_loc[1] + h / 2)
+        # Perform template matching
+        res = cv2.matchTemplate(img_gray, template_gray, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(res)
 
-        # Save the modified image with the rectangle
-        cv2.rectangle(img_rgb, max_loc, (max_loc[0] + w, max_loc[1] + h), (0, 255, 0), 2)
-        cv2.imwrite('screenshot_found.png', img_rgb)
+        # Define a threshold for match acceptance
+        threshold = 0.80
 
-        return {"x": center_x, "y": center_y}
-    else:
-        return {"error": "Button not found"}
+        # If a match is found, calculate the center coordinates
+        if max_val >= threshold:
+            h, w = template_gray.shape
+            center_x = int(max_loc[0] + w / 2)
+            center_y = int(max_loc[1] + h / 2)
+
+            # Save the modified image with the rectangle
+            cv2.rectangle(img_rgb, max_loc, (max_loc[0] + w, max_loc[1] + h), (0, 255, 0), 2)
+            cv2.imwrite('screenshot_found.png', img_rgb)
+
+            return {"x": center_x, "y": center_y}
+
+    return {"error": "Button not found"}
 
 def check_negative_titles(screenshot_path, coordinates):
     negative_titles = [
