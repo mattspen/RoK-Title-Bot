@@ -4,7 +4,7 @@ import json
 
 def find_add_title_button():
     screenshot_path = './screenshot.png'
-    template_paths = ['./resources/add-title-button.png', './resources/add-title-2-button.png']
+    template_paths = ['./resources/add-title-button.png', './resources/add-title-button2.png']
 
     # Load the screenshot
     img_rgb = cv2.imread(screenshot_path)
