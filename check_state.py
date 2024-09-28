@@ -7,7 +7,7 @@ import subprocess  # For executing ADB commands
 
 def check_state(device_id):
     screenshot_path = f'./current_state_{device_id}.png'
-    template_paths = ['./resources/exit.png', './resources/notice_board_exit.png', './resources/verification_chest_button.png', './resources/verification_close_refresh_ok_button.png']
+    template_paths = ['./resources/exit.png', './resources/exit2.png', './resources/notice_board_exit.png', './resources/verification_chest_button.png', './resources/verification_close_refresh_ok_button.png']
 
     # Load the screenshot
     img_rgb = cv2.imread(screenshot_path)
@@ -44,7 +44,7 @@ def check_state(device_id):
             best_match["confidence"] = max_val
 
         # If exit.png or notice_board_exit.png is found, return the coordinates immediately
-        if template_path in ['./resources/exit.png', './resources/notice_board_exit.png'] and best_match["match"]:
+        if template_path in ['./resources/exit.png', './resources/exit2.png', './resources/notice_board_exit.png'] and best_match["match"]:
             click_exit_button(device_id, best_match["location"])  # Click the exit button
             return {
                 "captcha_found": True,
