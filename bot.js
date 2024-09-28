@@ -446,9 +446,9 @@ async function processQueue(kingdom, title) {
     return;
   }
 
-  // Check if ADB is already running for this kingdom and title
-  if (isAdbRunning[kingdom]?.[title]) {
-    setTimeout(() => processQueue(kingdom, title), 1000); // Retry after 1 second
+  // Check if ADB is already running for this kingdom
+  if (isAdbRunning[kingdom]) {
+    setTimeout(() => processQueue(kingdom, title), 30000); // Retry after 1 second
     return;
   }
 
@@ -459,8 +459,7 @@ async function processQueue(kingdom, title) {
   let timer; // Declare the timer variable here
 
   try {
-    isAdbRunning[kingdom] = isAdbRunning[kingdom] || {};
-    isAdbRunning[kingdom][title] = true;
+    isAdbRunning[kingdom] = true;
 
     console.log(`Processing ${title} for user ${userId} in kingdom ${kingdom}`);
 
@@ -528,20 +527,37 @@ async function processQueue(kingdom, title) {
       // Set a timeout of 10 seconds before setting ADB false
       setTimeout(() => {
         isProcessing[kingdom][title] = false;
-        isAdbRunning[kingdom][title] = false;
+        isAdbRunning[kingdom] = false;
         processQueue(kingdom, title);
       }, 10000); // 10 second delay
     });
 
     timer = startTimer(collector, remainingTime); // Start the timer with the duration for the title
   } catch (error) {
+    const errorMessage = interaction
+      ? `<@${userId}>, ran into an error while processing your request for ${title}.`
+      : `<@${userId}>, ran into an error while processing your request for ${title}.`;
+
+    const errorAttachment = {
+      files: [{ attachment: "./screenshot.png" }],
+    };
+
+    if (interaction) {
+      await interaction.channel.send({
+        content: errorMessage,
+        ...errorAttachment,
+      });
+    } else {
+      await message.channel.send({ content: errorMessage, ...errorAttachment });
+    }
+
     console.error(
       `Error processing ${title} request for ${userId} in kingdom ${kingdom}: ${error.message}`
     );
 
     // If the title button is not found or any other error happens, clear processing
     isProcessing[kingdom][title] = false; // Ensure we clear processing state
-    isAdbRunning[kingdom][title] = false; // Ensure we clear ADB state
+    isAdbRunning[kingdom] = false; // Ensure we clear ADB state
     setTimeout(() => processQueue(kingdom, title), 10000); // Retry the queue after a delay
   }
 }
