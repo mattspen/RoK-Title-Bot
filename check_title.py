@@ -116,7 +116,6 @@ if __name__ == "__main__":
         # First, find the add title button
         button_result = find_add_title_button()
         if "error" in button_result:
-            print(json.dumps(button_result))
             exit(1)
         
         # Check for negative titles if button is found

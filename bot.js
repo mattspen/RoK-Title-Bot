@@ -400,7 +400,6 @@ function runCheckState() {
               console.error(`Stderr on ${deviceId}: ${stderr}`);
               return;
             }
-            console.log(`Output on ${deviceId}: ${stdout}`);
           });
         }
       );
@@ -594,10 +593,6 @@ async function runAdbCommand(
           return;
         }
 
-        console.log(
-          `Screenshot 'current_state_${deviceId}.png' taken successfully.`
-        );
-
         // Run the check_state.py script after taking the screenshot
         exec(`python check_state.py ${deviceId}`, (error, stdout, stderr) => {
           if (error) {
@@ -710,9 +705,6 @@ async function runAdbCommand(
           resolve({ success: false, error: "Python script execution error" });
           return;
         }
-
-        console.log("Raw output from Python script:", stdout);
-
         const lines = stdout.split("\n").filter((line) => line.trim() !== "");
         let jsonLine = lines[lines.length - 1];
 
@@ -729,10 +721,6 @@ async function runAdbCommand(
           console.log(`Error from Python script: ${result.error}`);
           resolve({ success: false, error: result.error });
         } else {
-          console.log(
-            `Coordinates received: ${result.coordinates.x}, ${result.coordinates.y}`
-          );
-
           // Execute the adb command to tap the screen
           exec(
             `adb -s ${deviceId} shell input tap ${result.coordinates.x} ${result.coordinates.y}`,

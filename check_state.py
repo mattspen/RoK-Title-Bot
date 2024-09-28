@@ -92,4 +92,3 @@ if __name__ == "__main__":
 
     device_id = sys.argv[1]
     result = check_state(device_id)
-    print(json.dumps(result))  # Ensure this is the only output
