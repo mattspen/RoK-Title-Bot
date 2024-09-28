@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import { exec } from "child_process";
 import mongoose from "mongoose";
 import User from "./models/User.js";
+import fs from "fs";
 
 dotenv.config();
 
@@ -538,9 +539,20 @@ async function processQueue(kingdom, title) {
       ? `<@${userId}>, ran into an error while processing your request for ${title}.`
       : `<@${userId}>, ran into an error while processing your request for ${title}.`;
 
-    const errorAttachment = {
-      files: [{ attachment: "./screenshot.png" }],
-    };
+    let errorAttachment;
+    const screenshots = [
+      "./screenshot_2.png",
+      "./screenshot_1.png",
+      "./screenshot_0.png",
+    ];
+
+    const existingScreenshot = screenshots.find((path) => fs.existsSync(path));
+
+    if (existingScreenshot) {
+      errorAttachment = { files: [{ attachment: existingScreenshot }] };
+    } else {
+      errorAttachment = {};
+    }
 
     if (interaction) {
       await interaction.channel.send({
@@ -573,6 +585,20 @@ async function startTimer(collector, remainingTime) {
     }
   }, 1000); // Decrement every second
   return timer;
+}
+
+function execAsync(command) {
+  return new Promise((resolve, reject) => {
+    exec(command, (error, stdout, stderr) => {
+      if (error) {
+        return reject(error);
+      }
+      if (stderr) {
+        console.error(`stderr: ${stderr}`);
+      }
+      resolve(stdout);
+    });
+  });
 }
 
 async function runAdbCommand(
@@ -640,28 +666,13 @@ async function runAdbCommand(
     if (!isHome) {
       console.log("Not at home. Returning home before processing the request.");
       await returnHome(deviceId);
-      // Add a 2-second delay to allow for animation
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Delay for animation
     }
   }
 
   console.log(
     `Running ADB command on ${deviceId} at coordinates (${x}, ${y}) for title: ${title}`
   );
-
-  const initialCommands = [
-    `adb -s ${deviceId} shell input tap 89 978`,
-    `adb -s ${deviceId} shell input tap 660 28`,
-    `adb -s ${deviceId} shell input tap 962 215`,
-    `adb -s ${deviceId} shell input text "${x}"`,
-    `adb -s ${deviceId} shell input tap 1169 215`,
-    `adb -s ${deviceId} shell input tap 1169 215`,
-    `adb -s ${deviceId} shell input text "${y}"`,
-    `adb -s ${deviceId} shell input tap 1331 212`,
-    `adb -s ${deviceId} shell input tap 1331 212`,
-    `adb -s ${deviceId} shell input tap 968 548`,
-    `adb -s ${deviceId} exec-out screencap -p > ./screenshot.png`,
-  ];
 
   const titleCommands = {
     Justice: [
@@ -690,8 +701,109 @@ async function runAdbCommand(
     ],
   };
 
+  const cityCoordinates = [
+    { x: 968, y: 548 },
+    { x: 950, y: 530 }, // Adjust as necessary
+    { x: 970, y: 560 },
+  ];
+
+  async function tapCityAndCheck() {
+    for (let attempt = 0; attempt < cityCoordinates.length; attempt++) {
+      const { x: cityX, y: cityY } = cityCoordinates[attempt];
+      const cityTapCommand = `adb -s ${deviceId} shell input tap ${cityX} ${cityY}`;
+
+      try {
+        // Execute tap command
+        await execAsync(cityTapCommand);
+        console.log(`Tapped city at coordinates (${cityX}, ${cityY}).`);
+
+        await new Promise((resolve) => setTimeout(resolve, 500)); // Short delay to allow the tap to register
+
+        // Take a screenshot for analysis with a unique name
+        const screenshotFilename = `screenshot_${attempt}.png`;
+        const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ./${screenshotFilename}`;
+        await execAsync(screenshotCommand);
+        console.log(`Screenshot taken successfully: ${screenshotFilename}`);
+
+        await new Promise((resolve) => setTimeout(resolve, 1000)); // Delay for the screenshot to be saved
+
+        // Analyze the screenshot and pass the filename
+        const titleCheckResult = await new Promise((resolve) => {
+          exec(
+            `python ./check_title.py ${screenshotFilename} ${deviceId}`,
+            (error, stdout) => {
+              if (error) {
+                console.error(
+                  `Error executing Python script: ${error.message}`
+                );
+                resolve({ success: false });
+                return;
+              }
+
+              const lines = stdout
+                .split("\n")
+                .filter((line) => line.trim() !== "");
+              let jsonLine = lines[lines.length - 1];
+
+              let result;
+              try {
+                result = JSON.parse(jsonLine.trim());
+              } catch (err) {
+                console.error("Error parsing JSON:", err);
+                resolve({ success: false });
+                return;
+              }
+
+              // Validate response structure for nested coordinates
+              if (
+                !result.coordinates ||
+                typeof result.coordinates.x !== "number" ||
+                typeof result.coordinates.y !== "number"
+              ) {
+                console.error("Invalid response structure:", result);
+                resolve({ success: false });
+                return;
+              }
+
+              setTimeout(() => {
+                resolve({ success: true, coordinates: result.coordinates });
+              }, 500); // 500 ms delay
+            }
+          );
+        });
+
+        // Check if the button was found
+        if (titleCheckResult.success) {
+          console.log("City button found!");
+          return { success: true, coordinates: titleCheckResult.coordinates }; // Exit if found
+        } else {
+          console.log("City button not found, trying next coordinate.");
+        }
+      } catch (error) {
+        console.error(
+          `Error tapping city or taking screenshot: ${error.message}`
+        );
+      }
+    }
+
+    console.log("City button not found after all attempts.");
+    return { success: false }; // If all taps fail
+  }
+
+  const initialCommands = [
+    `adb -s ${deviceId} shell input tap 89 978`,
+    `adb -s ${deviceId} shell input tap 660 28`,
+    `adb -s ${deviceId} shell input tap 962 215`,
+    `adb -s ${deviceId} shell input text "${x}"`,
+    `adb -s ${deviceId} shell input tap 1169 215`,
+    `adb -s ${deviceId} shell input tap 1169 215`,
+    `adb -s ${deviceId} shell input text "${y}"`,
+    `adb -s ${deviceId} shell input tap 1331 212`,
+    `adb -s ${deviceId} shell input tap 1331 212`,
+  ];
+
   async function executeCommandWithDelay(commands, index) {
-    if (index >= commands.length) return Promise.resolve(); // Resolve the promise when all commands are done
+    if (index >= commands.length) return Promise.resolve(); // Resolve when all commands are done
 
     return new Promise((resolve, reject) => {
       exec(commands[index], (error, stdout) => {
@@ -714,48 +826,7 @@ async function runAdbCommand(
   try {
     await executeCommandWithDelay(initialCommands, 0);
 
-    const titleCheckResult = await new Promise((resolve) => {
-      exec("python ./check_title.py", (error, stdout) => {
-        if (error) {
-          console.error(`Error executing Python script: ${error.message}`);
-          resolve({ success: false, error: "Python script execution error" });
-          return;
-        }
-        const lines = stdout.split("\n").filter((line) => line.trim() !== "");
-        let jsonLine = lines[lines.length - 1];
-
-        let result;
-        try {
-          result = JSON.parse(jsonLine.trim());
-        } catch (err) {
-          console.error("Error parsing JSON:", err);
-          resolve({ success: false, error: "JSON parsing error" });
-          return;
-        }
-
-        if (result.error) {
-          console.log(`Error from Python script: ${result.error}`);
-          resolve({ success: false, error: result.error });
-        } else {
-          // Execute the adb command to tap the screen
-          exec(
-            `adb -s ${deviceId} shell input tap ${result.coordinates.x} ${result.coordinates.y}`,
-            (error) => {
-              if (error) {
-                console.error(`Error executing adb command: ${error.message}`);
-                resolve({
-                  success: false,
-                  error: "ADB command execution error",
-                });
-              } else {
-                // Proceed with further processing using the coordinates
-                resolve({ success: true, coordinates: result.coordinates });
-              }
-            }
-          );
-        }
-      });
-    });
+    const titleCheckResult = await tapCityAndCheck();
 
     // Check the result of the title check
     if (!titleCheckResult.success) {
@@ -769,7 +840,7 @@ async function runAdbCommand(
     // Execute the title-specific commands after the title check with a delay
     await executeCommandWithDelay(titleCommands[title], 0);
 
-    return { success: true };
+    return { success: true, coordinates: titleCheckResult.coordinates }; // Return the found coordinates
   } catch (error) {
     console.error(`Error processing commands for ${userId}: ${error.message}`);
     return { success: false, error: error.message };

@@ -1,18 +1,20 @@
 import os
 import cv2
 import json
+import sys
+import subprocess
 
-def find_add_title_button():
-    screenshot_path = './screenshot.png'
-    template_paths = ['./resources/add-title-button.png', './resources/add-title-button2.png']
-
+def find_add_title_button(screenshot_path, device_id):
     # Load the screenshot
     img_rgb = cv2.imread(screenshot_path)
     if img_rgb is None:
-        return {"error": "screenshot.png not found or could not be opened"}
+        return {"error": f"{screenshot_path} not found or could not be opened"}
 
     # Convert screenshot to grayscale for matching
     img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
+
+    # Define template paths
+    template_paths = ['./resources/add-title-button.png', './resources/add-title-button2.png']
 
     for template_path in template_paths:
         # Load the template
@@ -28,7 +30,7 @@ def find_add_title_button():
         _, max_val, _, max_loc = cv2.minMaxLoc(res)
 
         # Define a threshold for match acceptance
-        threshold = 0.80
+        threshold = 0.65
 
         # If a match is found, calculate the center coordinates
         if max_val >= threshold:
@@ -38,7 +40,20 @@ def find_add_title_button():
 
             # Save the modified image with the rectangle
             cv2.rectangle(img_rgb, max_loc, (max_loc[0] + w, max_loc[1] + h), (0, 255, 0), 2)
+            cv2.putText(img_rgb, f'Max Val: {max_val:.2f}', (max_loc[0], max_loc[1] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+
             cv2.imwrite('screenshot_found.png', img_rgb)
+            print(f"x: {center_x}, y: {center_y}")
+
+            # Use the provided device ID to execute the adb command
+            adb_command = f'adb -s {device_id} shell input tap {center_x} {center_y}'
+
+            try:
+                subprocess.run(adb_command, shell=True, check=True)
+                print(f"Tapped at coordinates: ({center_x}, {center_y})")
+            except subprocess.CalledProcessError as e:
+                return {"error": f"ADB command failed: {e}"}
 
             return {"x": center_x, "y": center_y}
 
@@ -59,7 +74,7 @@ def check_negative_titles(screenshot_path, coordinates):
     # Load the screenshot
     img_rgb = cv2.imread(screenshot_path)
     if img_rgb is None:
-        return {"error": "screenshot.png not found or could not be opened"}
+        return {"error": f"{screenshot_path} not found or could not be opened"}
 
     # Zooming logic
     center_x = coordinates["x"]
@@ -107,23 +122,30 @@ def check_negative_titles(screenshot_path, coordinates):
         if max_val >= threshold:
             h, w = template_gray.shape
             cv2.rectangle(zoomed_image, max_loc, (max_loc[0] + w, max_loc[1] + h), (0, 0, 255), 2)
+            cv2.putText(zoomed_image, f'Max Val: {max_val:.2f}', (max_loc[0], max_loc[1] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+
             cv2.imwrite('zoomed_screenshot_with_negative_title.png', zoomed_image)
 
             return {"error": "Negative title detected."}
 
     return {"coordinates": coordinates}
 
-
 if __name__ == "__main__":
     try:
         # First, find the add title button
-        button_result = find_add_title_button()
+        if len(sys.argv) != 3:
+            print(json.dumps({"error": "Usage: python ./check_title.py <screenshot_path> <device_id>"}))
+            exit(1)
+
+        screenshot_path = sys.argv[1]
+        device_id = sys.argv[2]
+        button_result = find_add_title_button(screenshot_path, device_id)
         if "error" in button_result:
             exit(1)
-        
+
         # Check for negative titles if button is found
         coordinates = button_result
-        screenshot_path = 'screenshot.png'
         title_check_result = check_negative_titles(screenshot_path, coordinates)
 
         if "error" in title_check_result:
