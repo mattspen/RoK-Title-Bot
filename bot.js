@@ -218,9 +218,7 @@ client.on("messageCreate", async (message) => {
     const userId = message.author.id; // Get the user who sent the message
 
     try {
-      console.log("Fetching user with ID:", userId);
       const user = await User.findOne({ userId });
-      console.log("User fetched:", user); // Log the fetched user object
 
       if (
         user &&
@@ -482,13 +480,17 @@ async function processQueue(kingdom, title) {
     }
 
     // Rename the message variable for clarity
+    const screenshotPath = `./screenshot_${title.toLowerCase()}.png`;
+
     const notificationMessage = interaction
-      ? await interaction.channel.send(
-          `<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`
-        )
-      : await message.channel.send(
-          `<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`
-        );
+      ? await interaction.channel.send({
+          content: `<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`,
+          files: [screenshotPath],
+        })
+      : await message.channel.send({
+          content: `<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`,
+          files: [screenshotPath],
+        });
 
     await notificationMessage.react("✅"); // Use the renamed variable
 
@@ -646,7 +648,7 @@ async function runAdbCommand(
     `adb -s ${deviceId} shell input text "${y}"`,
     `adb -s ${deviceId} shell input tap 1331 212`,
     `adb -s ${deviceId} shell input tap 1331 212`,
-    `adb -s ${deviceId} shell input tap 961 484`,
+    `adb -s ${deviceId} shell input tap 968 548`,
     `adb -s ${deviceId} exec-out screencap -p > ./screenshot.png`,
   ];
 
