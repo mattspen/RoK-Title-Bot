@@ -310,7 +310,7 @@ function runRandomAdbCommands(deviceId) {
     exec(`adb -s ${deviceId} shell input tap ${x} ${y}`, (error) => {
       if (error) {
         console.error(`Error tapping on ${deviceId}: ${error.message}`);
-      } 
+      }
     });
   } else if (action === 2) {
     // Double tap action
@@ -325,7 +325,7 @@ function runRandomAdbCommands(deviceId) {
               console.error(
                 `Error double-tapping on ${deviceId}: ${error.message}`
               );
-            } 
+            }
           });
         }, 100); // 100 ms delay
       }
@@ -646,7 +646,7 @@ async function runAdbCommand(
     `adb -s ${deviceId} shell input text "${y}"`,
     `adb -s ${deviceId} shell input tap 1331 212`,
     `adb -s ${deviceId} shell input tap 1331 212`,
-    `adb -s ${deviceId} shell input tap 956 562`,
+    `adb -s ${deviceId} shell input tap 961 484`,
     `adb -s ${deviceId} exec-out screencap -p > ./screenshot.png`,
   ];
 
