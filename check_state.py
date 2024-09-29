@@ -1,14 +1,10 @@
 import os
 import cv2
-import numpy as np
 import json
 import sys
 import subprocess  # For executing ADB commands
 
-def check_state(device_id):
-    screenshot_path = f'./current_state_{device_id}.png'
-    template_paths = ['./resources/exit.png', './resources/exit2.png', './resources/notice_board_exit.png', './resources/verification_chest_button.png', './resources/verification_close_refresh_ok_button.png']
-
+def check_state(screenshot_path, device_id):
     # Load the screenshot
     img_rgb = cv2.imread(screenshot_path)
     if img_rgb is None:
@@ -16,6 +12,9 @@ def check_state(device_id):
 
     # Convert screenshot to grayscale for matching
     img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
+
+    # Define template paths
+    template_paths = ['./resources/exit.png', './resources/exit2.png', './resources/notice_board_exit.png', './resources/verification_chest_button.png', './resources/verification_close_refresh_ok_button.png']
 
     # Initialize variables to store the best match
     best_match = {
@@ -81,14 +80,17 @@ def highlight_area(img, location, template_shape):
     cv2.rectangle(img, top_left, bottom_right, (0, 255, 0), 2)
 
     # Save the modified image with the highlighted area
-    highlighted_image_path = 'highlighted_matched_area.png'
+    highlighted_image_path = './temp/highlighted_matched_area.png'
     cv2.imwrite(highlighted_image_path, img)
     print(f"Highlighted image saved as: {highlighted_image_path}")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python check_state.py <device_id>")
+    if len(sys.argv) != 3:
+        print("Usage: python check_state.py <screenshot_path> <device_id>")
         sys.exit(1)
 
-    device_id = sys.argv[1]
-    result = check_state(device_id)
+    screenshot_path = sys.argv[1]
+    device_id = sys.argv[2]
+    print(f"Checking state on device: {device_id} with screenshot: {screenshot_path}")
+    result = check_state(screenshot_path, device_id)
+    print(json.dumps(result))

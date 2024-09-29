@@ -4,13 +4,13 @@ import numpy as np
 import json
 
 def check_connection_loss():
-    screenshot_path = 'screenshot_connection.png'
+    screenshot_path = './temp/screenshot_connection.png'
     template_path = './resources/confirm-button.png'
 
     # Load the screenshot
     img_rgb = cv2.imread(screenshot_path)
     if img_rgb is None:
-        raise FileNotFoundError("screenshot_connection.png not found or could not be opened")
+        raise FileNotFoundError("./temp/screenshot_connection.png not found or could not be opened")
 
     # Load the template
     template = cv2.imread(template_path)

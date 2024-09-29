@@ -2,15 +2,16 @@ import os
 import cv2
 import numpy as np
 import json
+import sys
 
-def check_home():
-    screenshot_path = 'check_home.png'
+def check_home(device_id):
+    screenshot_path = f'./temp/check_home_{device_id}.png'
     template_paths = ['./resources/map_button.png', './resources/map_button_0.png']
 
     # Load the screenshot
     img_rgb = cv2.imread(screenshot_path)
     if img_rgb is None:
-        raise FileNotFoundError("check_home.png not found or could not be opened")
+        raise FileNotFoundError(f"{screenshot_path} not found or could not be opened")
 
     # Convert screenshot to grayscale for matching
     img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
@@ -52,5 +53,6 @@ def check_home():
     return result
 
 if __name__ == "__main__":
-    result = check_home()
+    device_id = sys.argv[1]  # Get deviceId from command line argument
+    result = check_home(device_id)
     print(json.dumps(result))  # Ensure this is the only output

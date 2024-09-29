@@ -43,7 +43,7 @@ def find_add_title_button(screenshot_path, device_id):
             cv2.putText(img_rgb, f'Max Val: {max_val:.2f}', (max_loc[0], max_loc[1] - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
 
-            cv2.imwrite('screenshot_found.png', img_rgb)
+            cv2.imwrite('temp/screenshot_found.png', img_rgb)
             print(f"x: {center_x}, y: {center_y}")
 
             # Use the provided device ID to execute the adb command
@@ -98,7 +98,7 @@ def check_negative_titles(screenshot_path, coordinates):
     zoomed_image = img_rgb[y_start:y_end, x_start:x_end]
 
     # Save the zoomed screenshot
-    cv2.imwrite('zoomed_screenshot.png', zoomed_image)
+    cv2.imwrite('./temp/zoomed_screenshot.png', zoomed_image)
 
     # Convert the zoomed image to grayscale
     zoomed_gray = cv2.cvtColor(zoomed_image, cv2.COLOR_BGR2GRAY)
@@ -125,7 +125,7 @@ def check_negative_titles(screenshot_path, coordinates):
             cv2.putText(zoomed_image, f'Max Val: {max_val:.2f}', (max_loc[0], max_loc[1] - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
-            cv2.imwrite('zoomed_screenshot_with_negative_title.png', zoomed_image)
+            cv2.imwrite('./temp/zoomed_screenshot_with_negative_title.png', zoomed_image)
 
             return {"error": "Negative title detected."}
 
