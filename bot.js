@@ -81,16 +81,15 @@ client.on("interactionCreate", async (interaction) => {
   if (interaction.channel.id !== process.env.DISCORD_CHANNEL_ID) return;
   const { commandName } = interaction;
 
-  if (commandName === "title") {
-    const userId =
-      interaction.options.getUser("user")?.id || interaction.user.id;
-    const title = interaction.options.getString("title");
+  try {
+    if (commandName === "title") {
+      const userId =
+        interaction.options.getUser("user")?.id || interaction.user.id;
+      const title = interaction.options.getString("title");
 
-    await interaction.reply("Processing your title request...");
+      await interaction.reply("Processing your title request...");
 
-    try {
       const user = await User.findOne({ userId });
-
       if (
         user &&
         user.username &&
@@ -111,16 +110,14 @@ client.on("interactionCreate", async (interaction) => {
           interaction,
           userId,
           title,
-          kingdom: user.kingdom, // Make sure kingdom is passed from the user object
+          kingdom: user.kingdom,
           x: user.x,
           y: user.y,
         };
 
-        // Add request to the title-specific queue
         queues[title].push(request);
         console.log(`Queue length for ${title}: ${queues[title].length}`);
 
-        // If the title is not currently being processed, start processing the queue
         if (!isProcessing[title]) {
           processQueue(title);
         }
@@ -135,19 +132,14 @@ client.on("interactionCreate", async (interaction) => {
           "You haven't registered your username and coordinates. Please use `/register [your_username] [x] [y]`."
         );
       }
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      await interaction.followUp(
-        "An error occurred while fetching your details. Please try again later."
+    } else if (commandName === "titles") {
+      const availableTitles = Object.keys(queues);
+      await interaction.reply(
+        `Available titles: ${availableTitles.join(", ")}`
       );
-    }
-  } else if (commandName === "titles") {
-    const availableTitles = Object.keys(queues);
-    await interaction.reply(`Available titles: ${availableTitles.join(", ")}`);
-  } else if (commandName === "me") {
-    const userId = interaction.user.id;
+    } else if (commandName === "me") {
+      const userId = interaction.user.id;
 
-    try {
       const user = await User.findOne({ userId });
       if (user) {
         await interaction.reply(
@@ -158,20 +150,13 @@ client.on("interactionCreate", async (interaction) => {
           "You don't have a registered username. Please use `/register [your_username]`."
         );
       }
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      await interaction.reply(
-        "An error occurred while fetching your details. Please try again later."
-      );
-    }
-  } else if (commandName === "register") {
-    const username = interaction.options.getString("username");
-    const kingdom = interaction.options.getInteger("kingdom");
-    const x = interaction.options.getInteger("x");
-    const y = interaction.options.getInteger("y");
-    const userId = interaction.user.id;
+    } else if (commandName === "register") {
+      const username = interaction.options.getString("username");
+      const kingdom = interaction.options.getInteger("kingdom");
+      const x = interaction.options.getInteger("x");
+      const y = interaction.options.getInteger("y");
+      const userId = interaction.user.id;
 
-    try {
       const user = await User.findOne({ userId });
 
       if (user) {
@@ -190,10 +175,16 @@ client.on("interactionCreate", async (interaction) => {
           `Your details have been registered: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       }
-    } catch (error) {
-      console.error("Error registering user:", error);
+    }
+  } catch (error) {
+    // Improved error handling
+    if (error.code === "ECONNRESET") {
+      console.error("Network error: Connection reset. Retrying...");
+      await interaction.reply("A network error occurred. Please try again.");
+    } else {
+      console.error("An unexpected error occurred:", error);
       await interaction.reply(
-        "An error occurred while registering your details. Please try again later."
+        "An error occurred while processing your request. Please try again later."
       );
     }
   }
@@ -330,10 +321,10 @@ async function processQueue(title) {
   if (isProcessing[title] || queues[title].length === 0) {
     return; // Exit if already processing or queue is empty
   }
-
+  console.log(Object.values(isAdbRunning).some((running) => running));
   // Check if ADB is already running for this title
   if (isAdbRunning[title]) {
-    setTimeout(() => processQueue(title), 30000); // Retry after 30 seconds
+    setTimeout(() => processQueue(title), 25000); // Retry after 30 seconds
     return;
   }
 
@@ -402,8 +393,6 @@ async function processQueue(title) {
 
       if (interaction) {
         interaction.channel.send(responseMessage);
-      } else {
-        message.channel.send(responseMessage);
       }
 
       // Timeout before resetting ADB running state
@@ -416,17 +405,16 @@ async function processQueue(title) {
 
     timer = startTimer(collector, remainingTime); // Start the timer
   } catch (error) {
+    console.log(error);
     const errorMessage = `<@${userId}>, ran into an error while processing your request for ${title}.`;
+    // const deviceId = process.env.EMULATOR_DEVICE_ID;
 
     if (interaction) {
-      await interaction.channel.send({ content: errorMessage });
-    } else {
-      await message.channel.send({ content: errorMessage });
+      await interaction.channel.send({
+        content: errorMessage,
+        // files: [`./temp/screenshot_2_${deviceId}.png`],
+      });
     }
-
-    console.error(
-      `Error processing ${title} request for ${userId}: ${error.message}`
-    );
 
     // Clear processing state
     isProcessing[title] = false;

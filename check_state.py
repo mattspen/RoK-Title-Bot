@@ -14,7 +14,7 @@ def check_state(screenshot_path, device_id):
     img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
 
     # Define template paths
-    template_paths = ['./resources/exit.png', './resources/exit2.png', './resources/notice_board_exit.png', './resources/verification_chest_button.png', './resources/verification_close_refresh_ok_button.png']
+    template_paths = ['./resources/exit.png', './resources/notice_board_app_exit.png', './resources/exit2.png', './resources/notice_board_exit.png', './resources/verification_chest_button.png', './resources/verification_close_refresh_ok_button.png']
 
     # Initialize variables to store the best match
     best_match = {
@@ -43,7 +43,7 @@ def check_state(screenshot_path, device_id):
             best_match["confidence"] = max_val
 
         # If exit.png or notice_board_exit.png is found, return the coordinates immediately
-        if template_path in ['./resources/exit.png', './resources/exit2.png', './resources/notice_board_exit.png'] and best_match["match"]:
+        if template_path in ['./resources/exit.png', './resources/exit2.png', './resources/notice_board_exit.png', './resources/notice_board_app_exit.png'] and best_match["match"]:
             click_exit_button(device_id, best_match["location"])  # Click the exit button
             return {
                 "captcha_found": True,
@@ -86,11 +86,8 @@ def highlight_area(img, location, template_shape):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python check_state.py <screenshot_path> <device_id>")
         sys.exit(1)
 
     screenshot_path = sys.argv[1]
     device_id = sys.argv[2]
-    print(f"Checking state on device: {device_id} with screenshot: {screenshot_path}")
     result = check_state(screenshot_path, device_id)
-    print(json.dumps(result))

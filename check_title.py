@@ -59,7 +59,7 @@ def find_add_title_button(screenshot_path, device_id):
 
     return {"error": "Button not found"}
 
-def check_negative_titles(screenshot_path, coordinates):
+def check_negative_titles(screenshot_path, coordinates, device_id):
     negative_titles = [
         './resources/exile_icon.png',
         './resources/exile_icon2.png',
@@ -98,7 +98,7 @@ def check_negative_titles(screenshot_path, coordinates):
     zoomed_image = img_rgb[y_start:y_end, x_start:x_end]
 
     # Save the zoomed screenshot
-    cv2.imwrite('./temp/zoomed_screenshot.png', zoomed_image)
+    cv2.imwrite(f'./temp/zoomed_screenshot_{device_id}.png', zoomed_image)
 
     # Convert the zoomed image to grayscale
     zoomed_gray = cv2.cvtColor(zoomed_image, cv2.COLOR_BGR2GRAY)
@@ -125,7 +125,7 @@ def check_negative_titles(screenshot_path, coordinates):
             cv2.putText(zoomed_image, f'Max Val: {max_val:.2f}', (max_loc[0], max_loc[1] - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
-            cv2.imwrite('./temp/zoomed_screenshot_with_negative_title.png', zoomed_image)
+            cv2.imwrite(f'./temp/zoomed_screenshot_with_negative_title_{device_id}.png', zoomed_image)
 
             return {"error": "Negative title detected."}
 
@@ -146,7 +146,7 @@ if __name__ == "__main__":
 
         # Check for negative titles if button is found
         coordinates = button_result
-        title_check_result = check_negative_titles(screenshot_path, coordinates)
+        title_check_result = check_negative_titles(screenshot_path, coordinates, device_id)
 
         if "error" in title_check_result:
             print(json.dumps(title_check_result))
