@@ -69,6 +69,7 @@ const titleDurations = {
   Architect: 300,
   Scientist: 200,
 };
+
 let timers = {};
 const lastUserRequest = {};
 
@@ -525,18 +526,15 @@ async function processQueue(title) {
       throw new Error("Title button not found in the ADB command.");
     }
 
+    let remainingTime = titleDurations[title];
+
     const deviceId = process.env.EMULATOR_DEVICE_ID;
     const screenshotPath = `./temp/screenshot_${title.toLowerCase()}_${deviceId}.png`;
 
-    const notificationMessage = interaction
-      ? await interaction.channel.send({
-          content: `<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`,
-          files: [screenshotPath],
-        })
-      : await message.channel.send({
-          content: `<@${userId}>, You're up for the title "${title}"! React with ✅ when done.`,
-          files: [screenshotPath],
-        });
+    const notificationMessage = await interaction.channel.send({
+      content: `<@${userId}>, You're up for the title "${title}"! React with ✅ when done, with a duration of ${remainingTime} seconds.`,
+      files: [screenshotPath],
+    });
 
     await notificationMessage.react("✅");
 
@@ -544,10 +542,8 @@ async function processQueue(title) {
       reaction.emoji.name === "✅" && user.id === userId;
     const collector = notificationMessage.createReactionCollector({
       filter,
-      time: 300 * 1000, // Collector timeout (5 minutes)
+      time: 300 * 1000,
     });
-
-    let remainingTime = titleDurations[title];
 
     const customDuration = await fetchCustomDurationFromDatabase(
       title,
@@ -569,6 +565,7 @@ async function processQueue(title) {
         `✅ Reaction collected for user ${userId}, stopping timer for ${title}.`
       );
       remainingTime = 0;
+      lastUserRequest[userId] = null;
       clearInterval(timers[title]);
       delete timers[title];
       collector.stop();
@@ -588,6 +585,7 @@ async function processQueue(title) {
       }
 
       setTimeout(() => {
+        lastUserRequest[userId] = null;
         isProcessing[title] = false;
         isAdbRunning[title] = false;
         processQueue(title);
@@ -595,18 +593,25 @@ async function processQueue(title) {
     });
 
     timers[title] = startTimer(collector, remainingTime, title, userId);
-
-    // Notify the user of the duration set for the title
-    const durationMessage = `<@${userId}>, you've been assigned the title "${title}" with a duration of ${remainingTime} seconds.`;
-    if (interaction) {
-      await interaction.channel.send({ content: durationMessage });
-    }
   } catch (error) {
+    const deviceId = process.env.EMULATOR_DEVICE_ID;
+    const screenshotPath = `./temp/screenshot_city_not_found_${deviceId}.png`;
     console.log(error);
-    const errorMessage = `<@${userId}>, ran into an error while processing your request for ${title}.`;
+    let errorMessage = `<@${userId}>, ran into an error while processing your request for ${title}.`;
 
-    if (interaction) {
-      await interaction.channel.send({ content: errorMessage });
+    if (error.message === "Title button not found in the ADB command.") {
+      // If a screenshot is being handled elsewhere, we can simply alert the user
+      errorMessage = `<@${userId}>, please check your city coordinates. If you can see your city, please let @popPIN know.`;
+      if (interaction) {
+        await interaction.channel.send({
+          content: errorMessage,
+          files: [screenshotPath],
+        });
+      }
+    } else {
+      if (interaction) {
+        await interaction.channel.send({ content: errorMessage });
+      }
     }
 
     isProcessing[title] = false;
