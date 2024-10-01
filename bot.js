@@ -7,15 +7,7 @@ import TitleDuration from "./models/setTimer.js";
 import LockedTitle from "./models/locktitle.js";
 
 dotenv.config({
-  path: process.env.ENV_FILE || ".env", // Adjust if using a different filename
-});
-
-// Debugging: Check if environment variables are loaded
-console.log("Loaded Environment Variables:");
-console.log({
-  DISCORD_TOKEN: process.env.DISCORD_TOKEN,
-  MONGO_URI: process.env.MONGO_URI,
-  DEVICE_ID: process.env.EMULATOR_DEVICE_ID,
+  path: process.env.ENV_FILE || ".env",
 });
 
 mongoose
@@ -78,11 +70,12 @@ const titleDurations = {
   Scientist: 200,
 };
 let timers = {};
+const lastUserRequest = {};
 
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isCommand()) return;
   if (interaction.channel.id !== process.env.DISCORD_CHANNEL_ID) return;
-  
+
   const { commandName } = interaction;
 
   try {
@@ -92,6 +85,14 @@ client.on("interactionCreate", async (interaction) => {
       const title = interaction.options.getString("title");
 
       await interaction.reply("Processing your title request...");
+
+      // Check if the user has already requested the same title
+      if (lastUserRequest[userId] === title) {
+        await interaction.followUp(
+          `<@${userId}>, you've already requested the title "${title}". Please wait until it's processed or choose a different title.`
+        );
+        return;
+      }
 
       const user = await User.findOne({ userId });
       if (
@@ -124,17 +125,29 @@ client.on("interactionCreate", async (interaction) => {
           y: user.y,
         };
 
+        // Add request to the queue for the title
         queues[title].push(request);
         console.log(`Queue length for ${title}: ${queues[title].length}`);
+
+        // Get the user's position in the queue
+        const queuePosition = queues[title].length;
+
+        // Store the last title request for the user
+        lastUserRequest[userId] = title;
 
         // Process the queue if not already processing
         if (!isProcessing[title]) {
           processQueue(title);
         }
 
-        if (queues[title].length > 1) {
+        // Inform the user of their position in the queue if it's greater than 1
+        if (queuePosition > 1) {
           await interaction.followUp(
-            `<@${userId}>, Your title request has been added to the queue for ${title}!`
+            `<@${userId}>, Your title request has been added to the queue for ${title}! You are number ${queuePosition} in line.`
+          );
+        } else {
+          await interaction.followUp(
+            `<@${userId}>, Your title request is being processed immediately.`
           );
         }
       } else {
@@ -480,26 +493,21 @@ setInterval(() => {
 
 // Track active timers for each title
 async function processQueue(title) {
-  // Ensure the necessary initializations
-
-  // Check if processing is already happening or the queue is empty
   if (isProcessing[title] || queues[title].length === 0) {
     return; // Exit if already processing or queue is empty
   }
 
-  // Check if ADB is already running for this title
   if (isAdbRunning[title]) {
     setTimeout(() => processQueue(title), 25000); // Retry after 25 seconds
     return;
   }
 
-  isProcessing[title] = true; // Set processing state to true
-  const request = queues[title].shift(); // Get the next request from the queue
-  const { message, kingdom, interaction, x, y, userId } = request; // Destructure the request
+  isProcessing[title] = true;
+  const request = queues[title].shift();
+  const { message, kingdom, interaction, x, y, userId } = request;
 
-  
   try {
-    isAdbRunning[title] = true; // Set ADB running state
+    isAdbRunning[title] = true;
 
     console.log(`Processing ${title} for user ${userId}`);
 
@@ -517,7 +525,6 @@ async function processQueue(title) {
       throw new Error("Title button not found in the ADB command.");
     }
 
-    // Define the screenshot path
     const deviceId = process.env.EMULATOR_DEVICE_ID;
     const screenshotPath = `./temp/screenshot_${title.toLowerCase()}_${deviceId}.png`;
 
@@ -531,7 +538,7 @@ async function processQueue(title) {
           files: [screenshotPath],
         });
 
-    await notificationMessage.react("✅"); // Add reaction
+    await notificationMessage.react("✅");
 
     const filter = (reaction, user) =>
       reaction.emoji.name === "✅" && user.id === userId;
@@ -540,19 +547,16 @@ async function processQueue(title) {
       time: 300 * 1000, // Collector timeout (5 minutes)
     });
 
-    // Get the duration for the title, fall back to default if not set
-    let remainingTime = titleDurations[title]; // Default to static durations
+    let remainingTime = titleDurations[title];
 
-    // Here, you could implement logic to check if there's a custom duration for the title
     const customDuration = await fetchCustomDurationFromDatabase(
       title,
       kingdom
-    ); // Implement this function
+    );
     if (customDuration) {
-      remainingTime = customDuration; // Override with the custom duration if it exists
+      remainingTime = customDuration;
     }
 
-    // Clear any existing timer for the title before starting a new one
     if (timers[title]) {
       clearInterval(timers[title]);
       console.log(
@@ -564,15 +568,15 @@ async function processQueue(title) {
       console.log(
         `✅ Reaction collected for user ${userId}, stopping timer for ${title}.`
       );
-      remainingTime = 0; // Set remaining time to 0
-      clearInterval(timers[title]); // Clear the timer immediately
-      delete timers[title]; // Remove the timer entry
-      collector.stop(); // Stop the collector
+      remainingTime = 0;
+      clearInterval(timers[title]);
+      delete timers[title];
+      collector.stop();
     });
 
     collector.on("end", (collected) => {
-      clearInterval(timers[title]); // Clear the timer
-      delete timers[title]; // Remove the timer entry
+      clearInterval(timers[title]);
+      delete timers[title];
 
       const responseMessage =
         collected.size === 0
@@ -583,16 +587,20 @@ async function processQueue(title) {
         interaction.channel.send(responseMessage);
       }
 
-      // Timeout before resetting ADB running state
       setTimeout(() => {
         isProcessing[title] = false;
         isAdbRunning[title] = false;
-        processQueue(title); // Process next request in queue
-      }, 10000); // 10 second delay
+        processQueue(title);
+      }, 10000);
     });
 
-    // Start the timer and store it in the timers object
     timers[title] = startTimer(collector, remainingTime, title, userId);
+
+    // Notify the user of the duration set for the title
+    const durationMessage = `<@${userId}>, you've been assigned the title "${title}" with a duration of ${remainingTime} seconds.`;
+    if (interaction) {
+      await interaction.channel.send({ content: durationMessage });
+    }
   } catch (error) {
     console.log(error);
     const errorMessage = `<@${userId}>, ran into an error while processing your request for ${title}.`;
@@ -601,10 +609,9 @@ async function processQueue(title) {
       await interaction.channel.send({ content: errorMessage });
     }
 
-    // Clear processing state
     isProcessing[title] = false;
     isAdbRunning[title] = false;
-    setTimeout(() => processQueue(title), 10000); // Retry after a delay
+    setTimeout(() => processQueue(title), 10000);
   }
 }
 
@@ -767,7 +774,7 @@ async function runAdbCommand(
 
   const cityCoordinates = [
     { x: 968, y: 548 },
-    { x: 950, y: 530 }, // Adjust as necessary
+    { x: 882, y: 576 },
     { x: 970, y: 560 },
   ];
 
@@ -848,6 +855,9 @@ async function runAdbCommand(
     }
 
     console.log("City button not found after all attempts.");
+    const screenshotFilename = `./temp/screenshot_city_not_found_${deviceId}.png`;
+    const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
+    await execAsync(screenshotCommand);
     return { success: false }; // If all taps fail
   }
 
