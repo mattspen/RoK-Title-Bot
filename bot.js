@@ -82,6 +82,7 @@ let timers = {};
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isCommand()) return;
   if (interaction.channel.id !== process.env.DISCORD_CHANNEL_ID) return;
+  
   const { commandName } = interaction;
 
   try {
@@ -100,17 +101,9 @@ client.on("interactionCreate", async (interaction) => {
         user.x != null &&
         user.y != null
       ) {
-        // Retrieve the user's kingdom
-        const userKingdom = user.kingdom; // Ensure you're using the kingdom from the user
+        const userKingdom = user.kingdom;
 
-        // Check if the title is locked for the user's kingdom
         const lockedTitle = await LockedTitle.findOne({
-          title,
-          kingdom: user.kingdom, // Ensure you're using the kingdom from the user object
-        });
-        console.log("Locked title:", lockedTitle);
-
-        console.log("Checking locked title for:", {
           title,
           kingdom: user.kingdom,
         });
@@ -119,15 +112,6 @@ client.on("interactionCreate", async (interaction) => {
           await interaction.followUp(
             `The title "${title}" is currently locked for your kingdom. Please choose a different title.`
           );
-          return; // Exit early if the title is locked
-        }
-
-        // Check if the title is valid
-        if (!queues[title]) {
-          console.error(`Invalid title: ${title}`);
-          await interaction.followUp(
-            "An error occurred due to an invalid title."
-          );
           return;
         }
 
@@ -135,7 +119,7 @@ client.on("interactionCreate", async (interaction) => {
           interaction,
           userId,
           title,
-          kingdom: userKingdom, // Use the user's kingdom here
+          kingdom: userKingdom,
           x: user.x,
           y: user.y,
         };
@@ -351,6 +335,16 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
   } catch (error) {
+    if (error.message === "Title button not found in the ADB command.") {
+      await interaction.followUp(
+        "I could not find your city. Please make sure your coordinates are correct and try again."
+      );
+    } else {
+      console.error("An unexpected error occurred:", error);
+      await interaction.followUp(
+        "An unexpected error occurred. Please try again later."
+      );
+    }
     // Improved error handling
     if (error.code === "ECONNRESET") {
       console.error("Network error: Connection reset. Retrying...");
@@ -487,10 +481,6 @@ setInterval(() => {
 // Track active timers for each title
 async function processQueue(title) {
   // Ensure the necessary initializations
-  if (!queues[title]) {
-    console.error(`Queue for title ${title} does not exist.`);
-    return; // Exit if the title is not valid
-  }
 
   // Check if processing is already happening or the queue is empty
   if (isProcessing[title] || queues[title].length === 0) {
@@ -507,8 +497,7 @@ async function processQueue(title) {
   const request = queues[title].shift(); // Get the next request from the queue
   const { message, kingdom, interaction, x, y, userId } = request; // Destructure the request
 
-  let timer; // Declare the timer variable
-
+  
   try {
     isAdbRunning[title] = true; // Set ADB running state
 
