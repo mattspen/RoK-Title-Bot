@@ -17,7 +17,7 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds], // Required to access guilds
 });
 
-// Command to assign a title (only asking for title, user coordinates are fetched from DB)
+// Command definitions
 const assignTitleCommand = {
   name: "title",
   description:
@@ -26,6 +26,44 @@ const assignTitleCommand = {
     {
       name: "title",
       description: "The title to assign",
+      type: 3, // STRING type
+      required: true,
+      choices: [
+        { name: "Justice", value: "Justice" },
+        { name: "Duke", value: "Duke" },
+        { name: "Architect", value: "Architect" },
+        { name: "Scientist", value: "Scientist" },
+      ],
+    },
+  ],
+};
+
+const lockTitleCommand = {
+  name: "locktitle",
+  description: "Lock a title for the registered kingdom",
+  options: [
+    {
+      name: "title",
+      description: "The title to lock",
+      type: 3, // STRING type
+      required: true,
+      choices: [
+        { name: "Justice", value: "Justice" },
+        { name: "Duke", value: "Duke" },
+        { name: "Architect", value: "Architect" },
+        { name: "Scientist", value: "Scientist" },
+      ],
+    },
+  ],
+};
+
+const unlockTitleCommand = {
+  name: "unlocktitle",
+  description: "Unlock a title for the registered kingdom",
+  options: [
+    {
+      name: "title",
+      description: "The title to unlock",
       type: 3, // STRING type
       required: true,
       choices: [
@@ -111,6 +149,11 @@ const registrationCommand = {
   ],
 };
 
+// Function to create a delay
+async function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function deleteExistingCommands(guildId) {
   const url = `https://discord.com/api/v10/applications/${APP_ID}/guilds/${guildId}/commands`;
 
@@ -166,10 +209,18 @@ async function registerGuildCommands(guildId) {
 
   try {
     await registerCommand(url, assignTitleCommand);
+    await delay(2000); // Wait for 1 second
     await registerCommand(url, showTitlesCommand);
+    await delay(2000); // Wait for 1 second
     await registerCommand(url, registrationCommand);
+    await delay(2000); // Wait for 1 second
     await registerCommand(url, meCommand);
+    await delay(2000); // Wait for 1 second
     await registerCommand(url, setTimerCommand);
+    await delay(2000); // Wait for 1 second
+    await registerCommand(url, unlockTitleCommand);
+    await delay(2000); // Wait for 1 second
+    await registerCommand(url, lockTitleCommand);
   } catch (error) {
     console.error(`Failed to register commands for guild ${guildId}:`, error);
   }

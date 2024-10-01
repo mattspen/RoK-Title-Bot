@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import User from "./models/User.js";
 import { exec } from "child_process";
 import TitleDuration from "./models/setTimer.js";
+import LockedTitle from "./models/locktitle.js";
 
 dotenv.config({
   path: process.env.ENV_FILE || ".env", // Adjust if using a different filename
@@ -99,6 +100,28 @@ client.on("interactionCreate", async (interaction) => {
         user.x != null &&
         user.y != null
       ) {
+        // Retrieve the user's kingdom
+        const userKingdom = user.kingdom; // Ensure you're using the kingdom from the user
+
+        // Check if the title is locked for the user's kingdom
+        const lockedTitle = await LockedTitle.findOne({
+          title,
+          kingdom: user.kingdom, // Ensure you're using the kingdom from the user object
+        });
+        console.log("Locked title:", lockedTitle);
+
+        console.log("Checking locked title for:", {
+          title,
+          kingdom: user.kingdom,
+        });
+
+        if (lockedTitle && lockedTitle.isLocked) {
+          await interaction.followUp(
+            `The title "${title}" is currently locked for your kingdom. Please choose a different title.`
+          );
+          return; // Exit early if the title is locked
+        }
+
         // Check if the title is valid
         if (!queues[title]) {
           console.error(`Invalid title: ${title}`);
@@ -112,7 +135,7 @@ client.on("interactionCreate", async (interaction) => {
           interaction,
           userId,
           title,
-          kingdom: user.kingdom,
+          kingdom: userKingdom, // Use the user's kingdom here
           x: user.x,
           y: user.y,
         };
@@ -120,6 +143,7 @@ client.on("interactionCreate", async (interaction) => {
         queues[title].push(request);
         console.log(`Queue length for ${title}: ${queues[title].length}`);
 
+        // Process the queue if not already processing
         if (!isProcessing[title]) {
           processQueue(title);
         }
@@ -243,6 +267,88 @@ client.on("interactionCreate", async (interaction) => {
           );
         }
       }
+    } else if (commandName === "locktitle") {
+      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
+        id.trim()
+      );
+      const userId = interaction.user.id;
+
+      // Check if the user is a superuser
+      if (!superUserIds.includes(userId)) {
+        await interaction.reply(
+          "You do not have permission to use this command."
+        );
+        return;
+      }
+      const title = interaction.options.getString("title");
+
+      await interaction.reply("Processing your lock title request...");
+
+      const user = await User.findOne({ userId: interaction.user.id });
+      if (user && user.kingdom) {
+        const kingdom = process.env.KINGDOM;
+
+        // Lock the title for the user's kingdom
+        const lockedTitle = await LockedTitle.findOneAndUpdate(
+          { title, kingdom },
+          { isLocked: true }, // Lock the title
+          { upsert: true, new: true }
+        );
+
+        if (lockedTitle) {
+          await interaction.followUp(
+            `Title "${title}" has been locked for kingdom ${kingdom}.`
+          );
+        } else {
+          await interaction.followUp("There was an error locking the title.");
+        }
+      } else {
+        await interaction.followUp(
+          "You haven't registered your username and kingdom. Please use `/register [your_username] [x] [y]`."
+        );
+      }
+    } else if (commandName === "unlocktitle") {
+      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
+        id.trim()
+      );
+      const userId = interaction.user.id;
+
+      // Check if the user is a superuser
+      if (!superUserIds.includes(userId)) {
+        await interaction.reply(
+          "You do not have permission to use this command."
+        );
+        return;
+      }
+      const title = interaction.options.getString("title");
+
+      await interaction.reply("Processing your unlock title request...");
+
+      const user = await User.findOne({ userId: interaction.user.id });
+      if (user && user.kingdom) {
+        const kingdom = process.env.KINGDOM;
+
+        // Unlock the title for the user's kingdom
+        const lockedTitle = await LockedTitle.findOneAndUpdate(
+          { title, kingdom },
+          { isLocked: false }, // Unlock the title
+          { new: true }
+        );
+
+        if (lockedTitle) {
+          await interaction.followUp(
+            `Title "${title}" has been unlocked for kingdom ${kingdom}.`
+          );
+        } else {
+          await interaction.followUp(
+            `No locked title found for "${title}" in kingdom ${kingdom}.`
+          );
+        }
+      } else {
+        await interaction.followUp(
+          "You haven't registered your username and kingdom. Please use `/register [your_username] [x] [y]`."
+        );
+      }
     }
   } catch (error) {
     // Improved error handling
@@ -252,7 +358,7 @@ client.on("interactionCreate", async (interaction) => {
     } else {
       console.error("An unexpected error occurred:", error);
       await interaction.reply(
-        "An error occurred while processing your request. Please try again later."
+        "An unexpected error occurred. Please try again later."
       );
     }
   }
