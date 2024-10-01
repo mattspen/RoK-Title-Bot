@@ -76,6 +76,7 @@ const titleDurations = {
   Architect: 300,
   Scientist: 200,
 };
+let timers = {};
 
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isCommand()) return;
