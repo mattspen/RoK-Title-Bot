@@ -2,18 +2,26 @@ import "dotenv/config";
 import fetch from "node-fetch";
 import { Client, GatewayIntentBits } from "discord.js";
 
-const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-const APP_ID = process.env.APP_ID;
+const DISCORD_TOKEN =
+  "MTI4MTIxNjI3NzAyNDczNTI2Mg.GqGp_l.8-2ya6_dlTXbv6HsiXrFimcXgpbUVrhrdhzomY";
+const APP_ID = "1281216277024735262";
+const SERVER_IDS = [
+  "944346140734783530",
+  "1175627891782987837",
+  "1281219698830348359",
+  "1287494300539682821",
+];
 
 // Create a new Discord client
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds] // Required to access guilds
+  intents: [GatewayIntentBits.Guilds], // Required to access guilds
 });
 
 // Command to assign a title (only asking for title, user coordinates are fetched from DB)
 const assignTitleCommand = {
   name: "title",
-  description: "Assign a title to yourself (coordinates are fetched from registration)",
+  description:
+    "Assign a title to yourself (coordinates are fetched from registration)",
   options: [
     {
       name: "title",
@@ -26,6 +34,37 @@ const assignTitleCommand = {
         { name: "Architect", value: "Architect" },
         { name: "Scientist", value: "Scientist" },
       ],
+    },
+  ],
+};
+
+const setTimerCommand = {
+  name: "settimer",
+  description: "Set a timer for a specific title",
+  options: [
+    {
+      name: "title",
+      description: "The title to set the timer for",
+      type: 3, // STRING type
+      required: true,
+      choices: [
+        { name: "Justice", value: "Justice" },
+        { name: "Duke", value: "Duke" },
+        { name: "Architect", value: "Architect" },
+        { name: "Scientist", value: "Scientist" },
+      ],
+    },
+    {
+      name: "duration",
+      description: "Duration for the title (in seconds)",
+      type: 4, // INTEGER type
+      required: true,
+    },
+    {
+      name: "kingdom",
+      description: "Your kingdom (must be 4 digits)",
+      type: 4, // INTEGER type
+      required: true,
     },
   ],
 };
@@ -109,23 +148,30 @@ async function deleteCommand(commandId, guildId) {
     if (response.ok) {
       console.log(`Deleted command ${commandId} for guild ${guildId}`);
     } else {
-      console.error(`Failed to delete command ${commandId} for guild ${guildId}:`, await response.json());
+      console.error(
+        `Failed to delete command ${commandId} for guild ${guildId}:`,
+        await response.json()
+      );
     }
   } catch (error) {
-    console.error(`Error deleting command ${commandId} for guild ${guildId}:`, error);
+    console.error(
+      `Error deleting command ${commandId} for guild ${guildId}:`,
+      error
+    );
   }
 }
 
-async function registerGlobalCommands() {
-  const url = `https://discord.com/api/v10/applications/${APP_ID}/commands`;
+async function registerGuildCommands(guildId) {
+  const url = `https://discord.com/api/v10/applications/${APP_ID}/guilds/${guildId}/commands`;
 
   try {
     await registerCommand(url, assignTitleCommand);
     await registerCommand(url, showTitlesCommand);
     await registerCommand(url, registrationCommand);
     await registerCommand(url, meCommand);
+    await registerCommand(url, setTimerCommand);
   } catch (error) {
-    console.error(`Failed to register global commands:`, error);
+    console.error(`Failed to register commands for guild ${guildId}:`, error);
   }
 }
 
@@ -150,17 +196,19 @@ async function registerCommand(url, command) {
   }
 }
 
-client.once('ready', async () => {
+client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}!`);
 
-  // Register commands for each connected guild
-  for (const guild of client.guilds.cache.values()) {
-    console.log(`Processing guild: ${guild.name} (ID: ${guild.id})`);
-    await deleteExistingCommands(guild.id);
-  }
+  // Register commands for each server ID in SERVER_IDS
+  for (const guildId of SERVER_IDS) {
+    console.log(`Processing guild ID: ${guildId}`);
 
-  // Register commands globally
-  await registerGlobalCommands();
+    // Delete existing commands
+    await deleteExistingCommands(guildId);
+
+    // Register commands for the current guild
+    await registerGuildCommands(guildId);
+  }
 });
 
 // Log in to Discord

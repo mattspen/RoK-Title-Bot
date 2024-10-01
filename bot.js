@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import User from "./models/User.js";
 import { exec } from "child_process";
+import TitleDuration from "./models/setTimer.js";
 
 dotenv.config({
   path: process.env.ENV_FILE || ".env", // Adjust if using a different filename
@@ -175,6 +176,72 @@ client.on("interactionCreate", async (interaction) => {
           `Your details have been registered: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       }
+    } else if (commandName === "settimer") {
+      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
+        id.trim()
+      );
+      const userId = interaction.user.id;
+
+      // Check if the user is a superuser
+      if (!superUserIds.includes(userId)) {
+        await interaction.reply(
+          "You do not have permission to use this command."
+        );
+        return;
+      }
+
+      const title = interaction.options.getString("title").trim();
+      const duration = interaction.options.getInteger("duration");
+      const kingdom = interaction.options.getInteger("kingdom"); // Keep kingdom as integer
+
+      // Validate kingdom format (4-digit number)
+      if (!/^\d{4}$/.test(kingdom.toString())) {
+        await interaction.reply("Kingdom must be a 4-digit number.");
+        return;
+      }
+
+      // Check for a valid title
+      const validTitles = ["Justice", "Duke", "Architect", "Scientist"];
+      if (!validTitles.includes(title)) {
+        await interaction.reply("Invalid title specified.");
+        return;
+      }
+
+      try {
+        // Attempt to update or insert the timer for the specified title and kingdom
+        const result = await TitleDuration.updateOne(
+          { title: title, kingdom: kingdom }, // Search criteria
+          { duration: duration }, // Update to perform
+          { upsert: true } // Create a new document if none matches
+        );
+
+        // Provide feedback based on the outcome
+        if (result.upsertedCount > 0) {
+          await interaction.reply(
+            `Timer for ${title} has been set to ${duration} seconds in kingdom ${kingdom}.`
+          );
+        } else {
+          await interaction.reply(
+            `Timer for ${title} has been updated to ${duration} seconds in kingdom ${kingdom}.`
+          );
+        }
+      } catch (error) {
+        console.error(
+          "An unexpected error occurred while updating the timer:",
+          error
+        );
+
+        // Handle duplicate key errors explicitly
+        if (error.code === 11000) {
+          await interaction.reply(
+            "Duplicate entry detected. Please check if the title already exists for the specified kingdom."
+          );
+        } else {
+          await interaction.reply(
+            "An unexpected error occurred while setting the timer."
+          );
+        }
+      }
     }
   } catch (error) {
     // Improved error handling
@@ -310,6 +377,7 @@ setInterval(() => {
   }
 }, 120000);
 
+// Track active timers for each title
 async function processQueue(title) {
   // Ensure the necessary initializations
   if (!queues[title]) {
@@ -321,16 +389,16 @@ async function processQueue(title) {
   if (isProcessing[title] || queues[title].length === 0) {
     return; // Exit if already processing or queue is empty
   }
-  console.log(Object.values(isAdbRunning).some((running) => running));
+
   // Check if ADB is already running for this title
   if (isAdbRunning[title]) {
-    setTimeout(() => processQueue(title), 25000); // Retry after 30 seconds
+    setTimeout(() => processQueue(title), 25000); // Retry after 25 seconds
     return;
   }
 
   isProcessing[title] = true; // Set processing state to true
   const request = queues[title].shift(); // Get the next request from the queue
-  const { message, kingdom, interaction, x, y, userId } = request; // Destructure the request, ensure kingdom is passed
+  const { message, kingdom, interaction, x, y, userId } = request; // Destructure the request
 
   let timer; // Declare the timer variable
 
@@ -344,16 +412,17 @@ async function processQueue(title) {
       x,
       y,
       title,
-      kingdom, // Use kingdom in ADB command
+      kingdom,
       interaction,
       message
-    ); // Run ADB command
+    );
 
     if (!adbResult.success) {
       throw new Error("Title button not found in the ADB command.");
     }
-    const deviceId = process.env.EMULATOR_DEVICE_ID;
+
     // Define the screenshot path
+    const deviceId = process.env.EMULATOR_DEVICE_ID;
     const screenshotPath = `./temp/screenshot_${title.toLowerCase()}_${deviceId}.png`;
 
     const notificationMessage = interaction
@@ -375,20 +444,43 @@ async function processQueue(title) {
       time: 300 * 1000, // Collector timeout (5 minutes)
     });
 
-    let remainingTime = titleDurations[title]; // Use the duration for the title
+    // Get the duration for the title, fall back to default if not set
+    let remainingTime = titleDurations[title]; // Default to static durations
+
+    // Here, you could implement logic to check if there's a custom duration for the title
+    const customDuration = await fetchCustomDurationFromDatabase(
+      title,
+      kingdom
+    ); // Implement this function
+    if (customDuration) {
+      remainingTime = customDuration; // Override with the custom duration if it exists
+    }
+
+    // Clear any existing timer for the title before starting a new one
+    if (timers[title]) {
+      clearInterval(timers[title]);
+      console.log(
+        `Existing timer for ${title} cleared before starting a new one.`
+      );
+    }
 
     collector.on("collect", () => {
+      console.log(
+        `✅ Reaction collected for user ${userId}, stopping timer for ${title}.`
+      );
       remainingTime = 0; // Set remaining time to 0
-      clearInterval(timer); // Clear the timer
+      clearInterval(timers[title]); // Clear the timer immediately
+      delete timers[title]; // Remove the timer entry
       collector.stop(); // Stop the collector
     });
 
     collector.on("end", (collected) => {
-      clearInterval(timer); // Clear the timer
+      clearInterval(timers[title]); // Clear the timer
+      delete timers[title]; // Remove the timer entry
 
       const responseMessage =
         collected.size === 0
-          ? `<@${userId}>, Time's up!`
+          ? `⏰ <@${userId}>, Time's up!`
           : `Done reaction collected. Moving to the next request.`;
 
       if (interaction) {
@@ -403,17 +495,14 @@ async function processQueue(title) {
       }, 10000); // 10 second delay
     });
 
-    timer = startTimer(collector, remainingTime); // Start the timer
+    // Start the timer and store it in the timers object
+    timers[title] = startTimer(collector, remainingTime, title, userId);
   } catch (error) {
     console.log(error);
     const errorMessage = `<@${userId}>, ran into an error while processing your request for ${title}.`;
-    // const deviceId = process.env.EMULATOR_DEVICE_ID;
 
     if (interaction) {
-      await interaction.channel.send({
-        content: errorMessage,
-        // files: [`./temp/screenshot_2_${deviceId}.png`],
-      });
+      await interaction.channel.send({ content: errorMessage });
     }
 
     // Clear processing state
@@ -423,17 +512,43 @@ async function processQueue(title) {
   }
 }
 
-async function startTimer(collector, remainingTime) {
+function startTimer(collector, remainingTime, title, userId) {
   let timer = setInterval(() => {
-    remainingTime -= 1;
+    remainingTime -= 1; // Decrement remaining time
     if (remainingTime <= 0) {
       clearInterval(timer); // Clear the timer when time runs out
       if (collector && !collector.ended) {
         collector.stop(); // Stop the collector if not ended
       }
+    } else {
+      // Log the remaining time to the console every 30 seconds
+      if (remainingTime % 30 === 0) {
+        console.log(
+          `User ${userId} has ${remainingTime} seconds remaining for the title "${title}".`
+        );
+      }
     }
   }, 1000); // Decrement every second
   return timer;
+}
+
+async function fetchCustomDurationFromDatabase(title, kingdom) {
+  try {
+    // Use the already defined model and filter by title and kingdom
+    const result = await TitleDuration.findOne({ title, kingdom });
+
+    if (result) {
+      return result.duration;
+    } else {
+      return null; // Return null if no custom duration is found
+    }
+  } catch (error) {
+    console.error(
+      `Error fetching custom duration for ${title} in kingdom ${kingdom}:`,
+      error
+    );
+    return null; // Return null in case of an error
+  }
 }
 
 function execAsync(command, retries = 3) {
