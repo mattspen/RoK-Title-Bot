@@ -532,7 +532,7 @@ async function processQueue(title) {
     const screenshotPath = `./temp/screenshot_${title.toLowerCase()}_${deviceId}.png`;
 
     const notificationMessage = await interaction.channel.send({
-      content: `<@${userId}>, You're up for the title "${title}"! React with ✅ when done, with a duration of ${remainingTime} seconds.`,
+      content: `<@${userId}>, You're up for the title "${title}"! React with ✅ when done, you have ${remainingTime} seconds.`,
       files: [screenshotPath],
     });
 
@@ -577,7 +577,7 @@ async function processQueue(title) {
 
       const responseMessage =
         collected.size === 0
-          ? `⏰ <@${userId}>, Time's up!`
+          ? `<@${userId}>, Time's up! ⏰`
           : `Done reaction collected. Moving to the next request.`;
 
       if (interaction) {
