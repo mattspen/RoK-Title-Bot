@@ -38,6 +38,11 @@ const assignTitleCommand = {
   ],
 };
 
+const resetBotCommand = {
+  name: "resetbot",
+  description: "Reset the bot",
+};
+
 const lockTitleCommand = {
   name: "locktitle",
   description: "Lock a title for the registered kingdom",
@@ -221,6 +226,8 @@ async function registerGuildCommands(guildId) {
     await registerCommand(url, unlockTitleCommand);
     await delay(2000); // Wait for 1 second
     await registerCommand(url, lockTitleCommand);
+    await delay(2000); // Wait for 1 second
+    await registerCommand(url, resetBotCommand);
   } catch (error) {
     console.error(`Failed to register commands for guild ${guildId}:`, error);
   }
