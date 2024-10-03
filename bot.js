@@ -7,6 +7,14 @@ import TitleDuration from "./models/setTimer.js";
 import LockedTitle from "./models/locktitle.js";
 import { returnHome } from "./helpers/returnhome.js";
 import { checkIfAtHome } from "./helpers/checkIfHome.js";
+import {
+  isAdbRunning,
+  isProcessing,
+  lastUserRequest,
+  queues,
+  timers,
+  titleDurations,
+} from "./helpers/vars.js";
 
 dotenv.config({
   path: process.env.ENV_FILE || ".env",
@@ -42,38 +50,9 @@ client.once("ready", () => {
   });
 });
 
-const queues = {
-  Duke: [],
-  Justice: [],
-  Architect: [],
-  Scientist: [],
-};
-
-let isProcessing = {
-  Duke: false,
-  Justice: false,
-  Architect: false,
-  Scientist: false,
-};
-
 // Initialize the ADB running state for each title
-let isAdbRunning = {
-  Duke: false,
-  Justice: false,
-  Architect: false,
-  Scientist: false,
-};
 
 // Timer duration for each title (in seconds)
-const titleDurations = {
-  Duke: 200,
-  Justice: 300,
-  Architect: 300,
-  Scientist: 200,
-};
-
-let timers = {};
-const lastUserRequest = {};
 
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isCommand()) return;
@@ -349,6 +328,52 @@ client.on("interactionCreate", async (interaction) => {
           "You haven't registered your username and kingdom. Please use `/register [your_username] [x] [y]`."
         );
       }
+    } else if (commandName === "resetbot") {
+      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
+        id.trim()
+      );
+      const userId = interaction.user.id;
+
+      // Check if the user is a superuser
+      if (!superUserIds.includes(userId)) {
+        await interaction.reply(
+          "You do not have permission to use this command."
+        );
+        return;
+      }
+
+      const deviceId = process.env.EMULATOR_DEVICE_ID;
+
+      await interaction.reply("Resetting the app...");
+
+      // Close Rise of Kingdoms app using ADB
+      exec(
+        `adb -s ${deviceId} shell am force-stop com.lilithgame.roc.gp`,
+        (error) => {
+          if (error) {
+            console.error(`Error stopping the app: ${error.message}`);
+            return interaction.followUp(
+              "Failed to stop the app. Please try again."
+            );
+          }
+
+          // Start Rise of Kingdoms app again
+          exec(
+            `adb -s ${deviceId} shell monkey -p com.lilithgame.roc.gp -c android.intent.category.LAUNCHER 1`,
+            (error) => {
+              if (error) {
+                console.error(`Error starting the app: ${error.message}`);
+                return interaction.followUp(
+                  "Failed to start the app. Please try again."
+                );
+              }
+              setTimeout(() => {
+                interaction.followUp("App has been reset successfully!");
+              }, 25000);
+            }
+          );
+        }
+      );
     }
   } catch (error) {
     if (error.message === "Title button not found in the ADB command.") {
@@ -924,7 +949,3 @@ async function runAdbCommand(
     return { success: false, error: error.message };
   }
 }
-
-
-
-
