@@ -8,15 +8,9 @@ export async function checkIfAtHome(deviceId, interaction, message, userId) {
       async (error) => {
         if (error) {
           console.error(`Error taking screenshot: ${error.message}`);
-          if (interaction) {
-            await interaction.channel.send(
-              `<@${userId}>, the bot is down. Please try again later.`
-            );
-          } else {
-            await message.channel.send(
-              `<@${userId}>, the bot is down. Please try again later.`
-            );
-          }
+          await interaction.channel.send(
+            `<@${userId}>, the bot is down. Please try again later.`
+          );
           return reject(false);
         }
 

@@ -50,10 +50,6 @@ client.once("ready", () => {
   });
 });
 
-// Initialize the ADB running state for each title
-
-// Timer duration for each title (in seconds)
-
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isCommand()) return;
   if (interaction.channel.id !== process.env.DISCORD_CHANNEL_ID) return;
@@ -61,100 +57,14 @@ client.on("interactionCreate", async (interaction) => {
   const { commandName } = interaction;
 
   try {
+    await interaction.deferReply(); // Defer the reply here
+
     if (commandName === "title") {
-      const userId =
-        interaction.options.getUser("user")?.id || interaction.user.id;
-      const title = interaction.options.getString("title");
-
-      await interaction.reply("Processing your title request...");
-
-      // Check if the user has already requested the same title
-      if (lastUserRequest[userId] === title) {
-        await interaction.followUp(
-          `<@${userId}>, you've already requested the title "${title}". Please wait until it's processed or choose a different title.`
-        );
-        return;
-      }
-
-      const user = await User.findOne({ userId });
-      if (
-        user &&
-        user.username &&
-        user.kingdom &&
-        user.x != null &&
-        user.y != null
-      ) {
-        const userKingdom = user.kingdom;
-
-        const lockedTitle = await LockedTitle.findOne({
-          title,
-          kingdom: user.kingdom,
-        });
-
-        if (lockedTitle && lockedTitle.isLocked) {
-          await interaction.followUp(
-            `The title "${title}" is currently locked for your kingdom. Please choose a different title.`
-          );
-          return;
-        }
-
-        const request = {
-          interaction,
-          userId,
-          title,
-          kingdom: userKingdom,
-          x: user.x,
-          y: user.y,
-        };
-
-        // Add request to the queue for the title
-        queues[title].push(request);
-        console.log(`Queue length for ${title}: ${queues[title].length}`);
-
-        // Get the user's position in the queue
-        const queuePosition = queues[title].length;
-
-        // Store the last title request for the user
-        lastUserRequest[userId] = title;
-
-        // Process the queue if not already processing
-        if (!isProcessing[title]) {
-          processQueue(title);
-        }
-
-        // Inform the user of their position in the queue if it's greater than 1
-        if (queuePosition > 1) {
-          await interaction.followUp(
-            `<@${userId}>, Your title request has been added to the queue for ${title}! You are number ${queuePosition} in line.`
-          );
-        } else {
-          await interaction.followUp(
-            `<@${userId}>, Your title request is being processed immediately.`
-          );
-        }
-      } else {
-        await interaction.followUp(
-          "You haven't registered your username and coordinates. Please use `/register [your_username] [x] [y]`."
-        );
-      }
-    } else if (commandName === "titles") {
-      const availableTitles = Object.keys(queues);
-      await interaction.reply(
-        `Available titles: ${availableTitles.join(", ")}`
-      );
-    } else if (commandName === "me") {
-      const userId = interaction.user.id;
-
-      const user = await User.findOne({ userId });
-      if (user) {
-        await interaction.reply(
-          `Your registered username is: ${user.username} and your coordinates are: (${user.x}, ${user.y})`
-        );
-      } else {
-        await interaction.reply(
-          "You don't have a registered username. Please use `/register [your_username]`."
-        );
-      }
+      await interaction.reply({
+        content: "The `/title` command is no longer supported. Please send a message with 'd', 'j', 'a', or 's' to request a title.",
+        ephemeral: true, // This makes the reply visible only to the user who invoked the command
+      });
+      return;
     } else if (commandName === "register") {
       const username = interaction.options.getString("username");
       const kingdom = interaction.options.getInteger("kingdom");
@@ -170,13 +80,13 @@ client.on("interactionCreate", async (interaction) => {
         user.x = x;
         user.y = y;
         await user.save();
-        await interaction.reply(
+        await interaction.followUp(
           `Your details have been updated: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       } else {
         const newUser = new User({ userId, username, kingdom, x, y });
         await newUser.save();
-        await interaction.reply(
+        await interaction.followUp(
           `Your details have been registered: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       }
@@ -188,7 +98,7 @@ client.on("interactionCreate", async (interaction) => {
 
       // Check if the user is a superuser
       if (!superUserIds.includes(userId)) {
-        await interaction.reply(
+        await interaction.followUp(
           "You do not have permission to use this command."
         );
         return;
@@ -200,14 +110,14 @@ client.on("interactionCreate", async (interaction) => {
 
       // Validate kingdom format (4-digit number)
       if (!/^\d{4}$/.test(kingdom.toString())) {
-        await interaction.reply("Kingdom must be a 4-digit number.");
+        await interaction.followUp("Kingdom must be a 4-digit number.");
         return;
       }
 
       // Check for a valid title
       const validTitles = ["Justice", "Duke", "Architect", "Scientist"];
       if (!validTitles.includes(title)) {
-        await interaction.reply("Invalid title specified.");
+        await interaction.followUp("Invalid title specified.");
         return;
       }
 
@@ -221,11 +131,11 @@ client.on("interactionCreate", async (interaction) => {
 
         // Provide feedback based on the outcome
         if (result.upsertedCount > 0) {
-          await interaction.reply(
+          await interaction.followUp(
             `Timer for ${title} has been set to ${duration} seconds in kingdom ${kingdom}.`
           );
         } else {
-          await interaction.reply(
+          await interaction.followUp(
             `Timer for ${title} has been updated to ${duration} seconds in kingdom ${kingdom}.`
           );
         }
@@ -237,11 +147,11 @@ client.on("interactionCreate", async (interaction) => {
 
         // Handle duplicate key errors explicitly
         if (error.code === 11000) {
-          await interaction.reply(
+          await interaction.followUp(
             "Duplicate entry detected. Please check if the title already exists for the specified kingdom."
           );
         } else {
-          await interaction.reply(
+          await interaction.followUp(
             "An unexpected error occurred while setting the timer."
           );
         }
@@ -254,14 +164,12 @@ client.on("interactionCreate", async (interaction) => {
 
       // Check if the user is a superuser
       if (!superUserIds.includes(userId)) {
-        await interaction.reply(
+        await interaction.followUp(
           "You do not have permission to use this command."
         );
         return;
       }
       const title = interaction.options.getString("title");
-
-      await interaction.reply("Processing your lock title request...");
 
       const user = await User.findOne({ userId: interaction.user.id });
       if (user && user.kingdom) {
@@ -294,14 +202,12 @@ client.on("interactionCreate", async (interaction) => {
 
       // Check if the user is a superuser
       if (!superUserIds.includes(userId)) {
-        await interaction.reply(
+        await interaction.followUp(
           "You do not have permission to use this command."
         );
         return;
       }
       const title = interaction.options.getString("title");
-
-      await interaction.reply("Processing your unlock title request...");
 
       const user = await User.findOne({ userId: interaction.user.id });
       if (user && user.kingdom) {
@@ -336,15 +242,13 @@ client.on("interactionCreate", async (interaction) => {
 
       // Check if the user is a superuser
       if (!superUserIds.includes(userId)) {
-        await interaction.reply(
+        await interaction.followUp(
           "You do not have permission to use this command."
         );
         return;
       }
 
       const deviceId = process.env.EMULATOR_DEVICE_ID;
-
-      await interaction.reply("Resetting the app...");
 
       // Close Rise of Kingdoms app using ADB
       exec(
@@ -374,12 +278,17 @@ client.on("interactionCreate", async (interaction) => {
           );
         }
       );
+    } else {
+      throw new Error("Unknown command");
     }
   } catch (error) {
+    console.log("Error:", error);
     if (error.message === "Title button not found in the ADB command.") {
       await interaction.followUp(
         "I could not find your city. Please make sure your coordinates are correct and try again."
       );
+    } else if (error.message === "Unknown command") {
+      await interaction.followUp("Unknown command. Please try again.");
     } else {
       console.error("An unexpected error occurred:", error);
       await interaction.followUp(
@@ -389,14 +298,50 @@ client.on("interactionCreate", async (interaction) => {
     // Improved error handling
     if (error.code === "ECONNRESET") {
       console.error("Network error: Connection reset. Retrying...");
-      await interaction.reply("A network error occurred. Please try again.");
+      await interaction.followUp("A network error occurred. Please try again.");
     } else {
       console.error("An unexpected error occurred:", error);
-      await interaction.reply(
+      await interaction.followUp(
         "An unexpected error occurred. Please try again later."
       );
     }
   }
+});
+
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+  if (message.channel.id !== process.env.DISCORD_CHANNEL_ID) return;
+
+  // Define title variations
+  const titleMappings = {
+    Duke: ["d", "duke", "duk", "D"],
+    Justice: ["j", "justice", "jus", "J"],
+    Architect: ["a", "arch", "architect", "A"],
+    Scientist: ["s", "scientist", "sci", "S"],
+  };
+
+  let title = null;
+  for (const [key, variations] of Object.entries(titleMappings)) {
+    if (variations.includes(message.content.toLowerCase())) {
+      title = key;
+      break;
+    }
+  }
+
+  if (!title) return;
+
+  const userId = message.author.id;
+
+  // Check if the user is requesting the same title as their last request
+  if (lastUserRequest[userId] === title) {
+    await message.reply(
+      `You cannot request the title "${title}" twice in a row. Please choose a different title.`
+    );
+    return;
+  }
+
+  // Centralized handling of title requests
+  await handleTitleRequest(userId, title, message);
 });
 
 function getRandomInt(min, max) {
@@ -519,25 +464,22 @@ setInterval(() => {
   }
 }, 120000);
 
-// Track active timers for each title
-async function processQueue(title) {
-  if (isProcessing[title] || queues[title].length === 0) {
-    return; // Exit if already processing or queue is empty
+// Global ADB queue to handle ADB requests fairly
+let adbQueue = [];
+let isAdbRunningGlobal = false;
+
+async function processGlobalAdbQueue() {
+  if (isAdbRunningGlobal || adbQueue.length === 0) {
+    return; // Exit if ADB is already running or queue is empty
   }
 
-  if (isAdbRunning[title]) {
-    setTimeout(() => processQueue(title), 25000); // Retry after 25 seconds
-    return;
-  }
-
-  isProcessing[title] = true;
-  const request = queues[title].shift();
-  const { message, kingdom, interaction, x, y, userId } = request;
+  isAdbRunningGlobal = true;
+  const { title, request } = adbQueue.shift();
 
   try {
-    isAdbRunning[title] = true;
+    const { userId, x, y, kingdom, interaction, message } = request;
 
-    console.log(`Processing ${title} for user ${userId}`);
+    console.log(`Processing ADB command for title: ${title}, user: ${userId}`);
 
     const adbResult = await runAdbCommand(
       userId,
@@ -553,8 +495,8 @@ async function processQueue(title) {
       throw new Error("Title button not found in the ADB command.");
     }
 
+    // After successful ADB command, continue with the regular title process
     let remainingTime = titleDurations[title];
-
     const deviceId = process.env.EMULATOR_DEVICE_ID;
     const screenshotPath = `./temp/screenshot_${title.toLowerCase()}_${deviceId}.png`;
 
@@ -615,7 +557,7 @@ async function processQueue(title) {
         lastUserRequest[userId] = null;
         isProcessing[title] = false;
         isAdbRunning[title] = false;
-        processQueue(title);
+        processQueue(title); // Process the next request in the title-specific queue
       }, 10000);
     });
 
@@ -624,27 +566,45 @@ async function processQueue(title) {
     const deviceId = process.env.EMULATOR_DEVICE_ID;
     const screenshotPath = `./temp/screenshot_city_not_found_${deviceId}.png`;
     console.log(error);
-    let errorMessage = `<@${userId}>, ran into an error while processing your request for ${title}.`;
+
+    let errorMessage = `<@${request.userId}>, ran into an error while processing your request for ${title}.`;
 
     if (error.message === "Title button not found in the ADB command.") {
-      // If a screenshot is being handled elsewhere, we can simply alert the user
-      errorMessage = `<@${userId}>, please check your city coordinates. If you can see your city, please let @popPIN know.`;
-      if (interaction) {
-        await interaction.channel.send({
+      errorMessage = `<@${request.userId}>, please check your city coordinates. If you can see your city, please let @popPIN know.`;
+      if (request.interaction) {
+        await request.interaction.channel.send({
           content: errorMessage,
           files: [screenshotPath],
         });
       }
-    } else {
-      if (interaction) {
-        await interaction.channel.send({ content: errorMessage });
-      }
     }
 
+    lastUserRequest[request.userId] = null;
     isProcessing[title] = false;
     isAdbRunning[title] = false;
     setTimeout(() => processQueue(title), 10000);
+  } finally {
+    isAdbRunningGlobal = false;
+    processGlobalAdbQueue(); // Continue processing the next item in the ADB queue
   }
+}
+
+// Modified processQueue function to add ADB request to global queue
+async function processQueue(title) {
+  if (isProcessing[title] || queues[title].length === 0) {
+    return; // Exit if already processing or queue is empty
+  }
+
+  isProcessing[title] = true;
+  const request = queues[title].shift();
+  const { userId } = request;
+
+  console.log(
+    `Adding ${title} request for user ${userId} to the global ADB queue`
+  );
+
+  adbQueue.push({ title, request });
+  processGlobalAdbQueue(); // Ensure ADB queue starts processing
 }
 
 function startTimer(collector, remainingTime, title, userId) {
@@ -834,6 +794,14 @@ async function runAdbCommand(
             `python ./check_title.py ${screenshotFilename} ${deviceId}`,
             (error, stdout) => {
               if (error) {
+                if (error.message.includes("Negative title detected")) {
+                  console.error("Negative title detected in the ADB command.");
+                  resolve({
+                    success: false,
+                    error: error.message,
+                  });
+                  return;
+                }
                 console.error(
                   `Error executing Python script: ${error.message}`
                 );
@@ -947,5 +915,103 @@ async function runAdbCommand(
   } catch (error) {
     console.error(`Error processing commands for ${userId}: ${error.message}`);
     return { success: false, error: error.message };
+  }
+}
+
+async function handleTitleRequest(userId, title, interaction) {
+  try {
+    const user = await User.findOne({ userId });
+
+    if (
+      user &&
+      user.username &&
+      user.kingdom &&
+      user.x != null &&
+      user.y != null
+    ) {
+      const userKingdom = user.kingdom;
+
+      const lockedTitle = await LockedTitle.findOne({
+        title,
+        kingdom: user.kingdom,
+      });
+
+      if (lockedTitle && lockedTitle.isLocked) {
+        await interaction.reply(
+          `The title "${title}" is currently locked for your kingdom. Please choose a different title.`
+        );
+        return;
+      }
+
+      // Initialize queue for the title if it doesn't exist
+      if (!queues[title]) {
+        queues[title] = [];
+      }
+
+      // Initialize processing flag for the title if it doesn't exist
+      if (!isProcessing[title]) {
+        isProcessing[title] = false;
+      }
+
+      const request = {
+        interaction, // Either the message or interaction
+        userId,
+        title,
+        kingdom: userKingdom,
+        x: user.x,
+        y: user.y,
+      };
+
+      // Add request to the queue for the title
+      queues[title].push(request);
+
+      const queuePosition = queues[title].length;
+
+      // Store the last title request for the user
+      lastUserRequest[userId] = title;
+
+      // Process the queue if not already processing
+      if (!isProcessing[title]) {
+        processQueue(title);
+      }
+
+      // Check if there are existing timers running for the title
+      const isTitleTimerRunning = timers[title] != null;
+
+      // Inform the user of their position in the queue
+      if (queuePosition > 1) {
+        if (!interaction.replied) {
+          await interaction.reply(
+            `Your title request has been added to the queue for ${title}! You are number ${queuePosition} in line.`
+          );
+        }
+      } else {
+        if (!interaction.replied) {
+          // Only inform the user that the request is being processed immediately if no timers are running
+          if (!isTitleTimerRunning) {
+            await interaction.reply(
+              `Your title request for ${title} is being processed immediately.`
+            );
+          } else {
+            await interaction.reply(
+              `Your title request for ${title} is in queue, but another request is being processed. You will be notified once it is your turn.`
+            );
+          }
+        }
+      }
+    } else {
+      if (!interaction.replied) {
+        await interaction.reply(
+          "You haven't registered your username and coordinates. Please use `/register [your_username] [x] [y]`."
+        );
+      }
+    }
+  } catch (error) {
+    console.error("An unexpected error occurred:", error);
+    if (!interaction.replied) {
+      await interaction.reply(
+        "An unexpected error occurred. Please try again later."
+      );
+    }
   }
 }
