@@ -15,6 +15,8 @@ import {
   timers,
   titleDurations,
 } from "./helpers/vars.js";
+import { fetchCustomDurationFromDatabase } from "./helpers/fetchCustomDurationFromDatabase.js";
+import { getRandomInt } from "./helpers/getRandomInt.js";
 
 dotenv.config({
   path: process.env.ENV_FILE || ".env",
@@ -60,8 +62,9 @@ client.on("interactionCreate", async (interaction) => {
     await interaction.deferReply(); // Defer the reply here
 
     if (commandName === "title") {
-      await interaction.reply({
-        content: "The `/title` command is no longer supported. Please send a message with 'd', 'j', 'a', or 's' to request a title.",
+      await interaction.followUp({
+        content:
+          "The `/title` command is no longer supported. Please send a message with 'd', 'j', 'a', or 's' to request a title.",
         ephemeral: true, // This makes the reply visible only to the user who invoked the command
       });
       return;
@@ -344,10 +347,6 @@ client.on("messageCreate", async (message) => {
   await handleTitleRequest(userId, title, message);
 });
 
-function getRandomInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
 function runRandomAdbCommands(deviceId) {
   const centerX = 960; // Center X for 1080p
   const centerY = 540; // Center Y for 1080p
@@ -625,25 +624,6 @@ function startTimer(collector, remainingTime, title, userId) {
     }
   }, 1000); // Decrement every second
   return timer;
-}
-
-async function fetchCustomDurationFromDatabase(title, kingdom) {
-  try {
-    // Use the already defined model and filter by title and kingdom
-    const result = await TitleDuration.findOne({ title, kingdom });
-
-    if (result) {
-      return result.duration;
-    } else {
-      return null; // Return null if no custom duration is found
-    }
-  } catch (error) {
-    console.error(
-      `Error fetching custom duration for ${title} in kingdom ${kingdom}:`,
-      error
-    );
-    return null; // Return null in case of an error
-  }
 }
 
 function execAsync(command, retries = 3) {

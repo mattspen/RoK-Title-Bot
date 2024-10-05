@@ -30,7 +30,7 @@ def find_add_title_button(screenshot_path, device_id):
         _, max_val, _, max_loc = cv2.minMaxLoc(res)
 
         # Define a threshold for match acceptance
-        threshold = 0.65
+        threshold = 0.8
 
         # If a match is found, calculate the center coordinates
         if max_val >= threshold:
@@ -43,7 +43,7 @@ def find_add_title_button(screenshot_path, device_id):
             cv2.putText(img_rgb, f'Max Val: {max_val:.2f}', (max_loc[0], max_loc[1] - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
 
-            cv2.imwrite('temp/screenshot_found.png', img_rgb)
+            cv2.imwrite(f'temp/screenshot_found_{device_id}.png', img_rgb)
             print(f"x: {center_x}, y: {center_y}")
 
             # Use the provided device ID to execute the adb command
