@@ -70,7 +70,7 @@ client.on("interactionCreate", async (interaction) => {
       return;
     } else if (commandName === "register") {
       const username = interaction.options.getString("username");
-      const kingdom = interaction.options.getInteger("kingdom");
+      const kingdom = parseInt(process.env.KINGDOM, 10); // Get kingdom from environment variable and cast to integer
       const x = interaction.options.getInteger("x");
       const y = interaction.options.getInteger("y");
       const userId = interaction.user.id;
@@ -109,7 +109,7 @@ client.on("interactionCreate", async (interaction) => {
 
       const title = interaction.options.getString("title").trim();
       const duration = interaction.options.getInteger("duration");
-      const kingdom = interaction.options.getInteger("kingdom"); // Keep kingdom as integer
+      const kingdom = parseInt(process.env.KINGDOM, 10); // Get kingdom from environment variable and cast to integer
 
       // Validate kingdom format (4-digit number)
       if (!/^\d{4}$/.test(kingdom.toString())) {
