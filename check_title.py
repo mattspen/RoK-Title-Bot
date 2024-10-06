@@ -30,7 +30,7 @@ def find_add_title_button(screenshot_path, device_id):
         _, max_val, _, max_loc = cv2.minMaxLoc(res)
 
         # Define a threshold for match acceptance
-        threshold = 0.8
+        threshold = 0.9
 
         # If a match is found, calculate the center coordinates
         if max_val >= threshold:
