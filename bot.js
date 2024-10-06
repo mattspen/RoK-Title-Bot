@@ -17,6 +17,7 @@ import {
 } from "./helpers/vars.js";
 import { fetchCustomDurationFromDatabase } from "./helpers/fetchCustomDurationFromDatabase.js";
 import { getRandomInt } from "./helpers/getRandomInt.js";
+import TitleRequestLog from "./models/TitleRequestLog.js";
 
 dotenv.config({
   path: process.env.ENV_FILE || ".env",
@@ -444,6 +445,37 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
+  // Handle logs command to view successes and failures
+  if (args[0].toLowerCase() === "logs") {
+    const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
+      id.trim()
+    );
+    const userId = message.author.id;
+
+    // Check if the user is a superuser
+    if (!superUserIds.includes(userId)) {
+      await message.reply("You do not have permission to view the logs.");
+      return;
+    }
+
+    try {
+      const successCount = await TitleRequestLog.countDocuments({
+        status: "successful", // Corrected field name
+      });
+      const failureCount = await TitleRequestLog.countDocuments({
+        status: "unsuccessful", // Corrected field name
+      });
+
+      await message.reply(
+        `Title Request Logs:\nSuccesses: ${successCount}\nFailures: ${failureCount}`
+      );
+    } catch (error) {
+      console.error("Error fetching logs:", error);
+      await message.reply("An error occurred while fetching the logs.");
+    }
+    return;
+  }
+
   // Define title variations
   const titleMappings = {
     Duke: ["d", "duke", "duk", "D"],
@@ -614,7 +646,16 @@ async function processGlobalAdbQueue() {
   const { title, request } = adbQueue.shift();
 
   try {
-    const { userId, x, y, kingdom, interaction, message } = request;
+    const { userId, x, y, interaction, message } = request;
+
+    // Fetch user to get the username and kingdom
+    const user = await User.findOne({ userId });
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const username = user.username; // Retrieve the username
+    const kingdom = user.kingdom; // Extract kingdom from user
 
     console.log(`Processing ADB command for title: ${title}, user: ${userId}`);
 
@@ -631,6 +672,16 @@ async function processGlobalAdbQueue() {
     if (!adbResult.success) {
       throw new Error("Title button not found in the ADB command.");
     }
+
+    // Log the successful title request
+    await TitleRequestLog.create({
+      userId,
+      username,
+      title,
+      kingdom,
+      status: "successful", // Updated to match the schema
+      timestamp: new Date(),
+    });
 
     // After successful ADB command, continue with the regular title process
     let remainingTime = titleDurations[title];
@@ -704,10 +755,11 @@ async function processGlobalAdbQueue() {
     const screenshotPath = `./temp/screenshot_city_not_found_${deviceId}.png`;
     console.log(error);
 
-    let errorMessage = `<@${request.userId}>, ran into an error while processing your request for ${title}.`;
+    const { userId } = request; // Extract userId from request here
+    let errorMessage = `<@${userId}>, ran into an error while processing your request for ${title}.`;
 
     if (error.message === "Title button not found in the ADB command.") {
-      errorMessage = `<@${request.userId}>, please check your city coordinates. If you can see your city, please let @popPIN know.`;
+      errorMessage = `<@${userId}>, please check your city coordinates. If you can see your city, please let @popPIN know.`;
       if (request.interaction) {
         await request.interaction.channel.send({
           content: errorMessage,
@@ -715,6 +767,19 @@ async function processGlobalAdbQueue() {
         });
       }
     }
+
+    // Log the unsuccessful title request
+    const user = await User.findOne({ userId });
+    const username = user ? user.username : "Unknown User"; // Handle case if user is not found
+    const kingdom = user ? user.kingdom : "Unknown Kingdom"; // Handle kingdom extraction
+    await TitleRequestLog.create({
+      userId,
+      username,
+      title,
+      kingdom,
+      status: "unsuccessful", // Updated to match the schema
+      timestamp: new Date(),
+    });
 
     lastUserRequest[request.userId] = null;
     isProcessing[title] = false;
