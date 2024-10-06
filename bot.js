@@ -315,6 +315,135 @@ client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
   if (message.channel.id !== process.env.DISCORD_CHANNEL_ID) return;
 
+  const content = message.content.trim();
+  const args = content.split(/\s+/); // Split message content by spaces
+
+  // Handle 'register' command (self-registration)
+  if (args[0].toLowerCase() === "register") {
+    // Check if there are enough arguments for username, x, and y
+    if (args.length < 4) {
+      await message.reply(
+        "Please provide a username and coordinates in the format: `register <username> <x> <y>`."
+      );
+      return;
+    }
+
+    const username = args[1];
+    const x = parseInt(args[2], 10);
+    const y = parseInt(args[3], 10);
+
+    // Validate the coordinates
+    if (isNaN(x) || isNaN(y)) {
+      await message.reply(
+        "Invalid coordinates. Please enter valid numbers for x and y."
+      );
+      return;
+    }
+
+    const userId = message.author.id;
+    const kingdom = parseInt(process.env.KINGDOM, 10); // Get the kingdom from environment variable
+
+    try {
+      const user = await User.findOne({ userId });
+
+      if (user) {
+        // Update the existing user's details
+        user.username = username;
+        user.kingdom = kingdom;
+        user.x = x;
+        user.y = y;
+        await user.save();
+        await message.reply(
+          `Your details have been updated: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+        );
+      } else {
+        // Create a new user
+        const newUser = new User({ userId, username, kingdom, x, y });
+        await newUser.save();
+        await message.reply(
+          `You have been registered: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+        );
+      }
+    } catch (error) {
+      console.error("Error registering user:", error);
+      await message.reply(
+        "There was an error with your registration. Please try again later."
+      );
+    }
+    return;
+  }
+
+  // Handle 'registeruser' command (superuser registration of others)
+  if (args[0].toLowerCase() === "registeruser") {
+    const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
+      id.trim()
+    );
+    const userId = message.author.id;
+
+    // Check if the user is a superuser
+    if (!superUserIds.includes(userId)) {
+      await message.reply("You do not have permission to use this command.");
+      return;
+    }
+
+    // Validate the correct number of arguments for registeruser
+    if (args.length !== 5) {
+      await message.reply(
+        "Invalid command format. Please use: `registeruser <discordid> <username> <x> <y>`."
+      );
+      return;
+    }
+
+    const targetUserId = args[1]; // Discord ID of the user to register
+    const username = args[2];
+    const x = parseInt(args[3], 10);
+    const y = parseInt(args[4], 10);
+    const kingdom = parseInt(process.env.KINGDOM, 10); // Get the kingdom from environment
+
+    // Validate coordinates
+    if (isNaN(x) || isNaN(y)) {
+      await message.reply(
+        "Invalid coordinates. Please provide valid integers for x and y."
+      );
+      return;
+    }
+
+    try {
+      const user = await User.findOne({ userId: targetUserId });
+
+      if (user) {
+        // Update existing user
+        user.username = username;
+        user.kingdom = kingdom;
+        user.x = x;
+        user.y = y;
+        await user.save();
+        await message.reply(
+          `User with Discord ID ${targetUserId} has been updated: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+        );
+      } else {
+        // Create new user
+        const newUser = new User({
+          userId: targetUserId,
+          username,
+          kingdom,
+          x,
+          y,
+        });
+        await newUser.save();
+        await message.reply(
+          `User with Discord ID ${targetUserId} has been registered: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+        );
+      }
+    } catch (error) {
+      console.error("Error registering user:", error);
+      await message.reply(
+        "An error occurred while registering the user. Please try again."
+      );
+    }
+    return;
+  }
+
   // Define title variations
   const titleMappings = {
     Duke: ["d", "duke", "duk", "D"],
@@ -348,6 +477,15 @@ client.on("messageCreate", async (message) => {
 });
 
 function runRandomAdbCommands(deviceId) {
+  // Check if any ADB function is currently running
+  const isAnyAdbRunning = Object.values(isAdbRunning).some((kingdom) =>
+    Object.values(kingdom).some((isRunning) => isRunning)
+  );
+
+  if (isAnyAdbRunning) {
+    return;
+  }
+
   const centerX = 960; // Center X for 1080p
   const centerY = 540; // Center Y for 1080p
   const offsetRange = 100; // Range for random offset around the center
@@ -713,10 +851,6 @@ async function runAdbCommand(
     }
   }
 
-  console.log(
-    `Running ADB command on ${deviceId} at coordinates (${x}, ${y}) for title: ${title}`
-  );
-
   const titleCommands = {
     Justice: [
       `adb -s ${deviceId} shell input tap 440 592`,
@@ -758,7 +892,6 @@ async function runAdbCommand(
       try {
         // Execute tap command
         await execAsync(cityTapCommand);
-        console.log(`Tapped city at coordinates (${cityX}, ${cityY}).`);
 
         await new Promise((resolve) => setTimeout(resolve, 1000)); // Short delay to allow the tap to register
 
@@ -815,7 +948,7 @@ async function runAdbCommand(
 
               setTimeout(() => {
                 resolve({ success: true, coordinates: result.coordinates });
-              }, 500); // 500 ms delay
+              }, 500);
             }
           );
         });
@@ -823,7 +956,7 @@ async function runAdbCommand(
         // Check if the button was found
         if (titleCheckResult.success) {
           console.log("City button found!");
-          return { success: true, coordinates: titleCheckResult.coordinates }; // Exit if found
+          return { success: true, coordinates: titleCheckResult.coordinates };
         } else {
           console.log("City button not found, trying next coordinate.");
         }
@@ -838,11 +971,11 @@ async function runAdbCommand(
     const screenshotFilename = `./temp/screenshot_city_not_found_${deviceId}.png`;
     const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
     await execAsync(screenshotCommand);
-    return { success: false }; // If all taps fail
+    return { success: false };
   }
 
   const initialCommands = [
-    `adb -s ${deviceId} shell input tap 89 978`,
+    `adb -s ${deviceId} shell input tap 91 982`,
     `adb -s ${deviceId} shell input tap 660 28`,
     `adb -s ${deviceId} shell input tap 962 215`,
     `adb -s ${deviceId} shell input text "${x}"`,
