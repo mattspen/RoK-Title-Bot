@@ -1067,7 +1067,7 @@ async function runAdbCommand(
           executeCommandWithDelay(commands, index + 1)
             .then(resolve)
             .catch(reject); // Resolve after all commands
-        }, 1000); // 1 second delay
+        }, 1500); // 1 second delay
       });
     });
   }
