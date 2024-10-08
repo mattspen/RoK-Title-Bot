@@ -164,6 +164,7 @@ async function deleteGlobalCommands() {
       const commands = await response.json();
       // Loop through and delete each command
       for (const command of commands) {
+        console.log(`Deleting command ${command.id}`);
         await deleteCommand(command.id);
         await delay(2000); // Wait for 2 seconds before deleting the next command
       }
@@ -203,12 +204,12 @@ async function registerGlobalCommands() {
   const url = `https://discord.com/api/v10/applications/${APP_ID}/commands`;
 
   try {
-    await registerCommand(url, assignTitleCommand);
-    await delay(2000); // Wait for 2 seconds before registering the next command
-    await registerCommand(url, showTitlesCommand);
-    await delay(2000); // Wait for 2 seconds before registering the next command
-    await registerCommand(url, registrationCommand);
-    await delay(2000); // Wait for 2 seconds before registering the next command
+    // await registerCommand(url, assignTitleCommand);
+    // await delay(2000); // Wait for 2 seconds before registering the next command
+    // await registerCommand(url, showTitlesCommand);
+    // await delay(2000); // Wait for 2 seconds before registering the next command
+    // await registerCommand(url, registrationCommand);
+    // await delay(2000); // Wait for 2 seconds before registering the next command
     await registerCommand(url, meCommand);
     await delay(2000); // Wait for 2 seconds before registering the next command
     await registerCommand(url, setTimerCommand);

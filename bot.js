@@ -53,264 +53,264 @@ client.once("ready", () => {
   });
 });
 
-client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isCommand()) return;
-  if (interaction.channel.id !== process.env.DISCORD_CHANNEL_ID) return;
+// client.on("interactionCreate", async (interaction) => {
+//   if (!interaction.isCommand()) return;
+//   if (interaction.channel.id !== process.env.DISCORD_CHANNEL_ID) return;
 
-  const { commandName } = interaction;
+//   const { commandName } = interaction;
 
-  try {
-    await interaction.deferReply(); // Defer the reply here
+//   try {
+//     await interaction.deferReply(); // Defer the reply here
 
-    if (commandName === "title") {
-      await interaction.followUp({
-        content:
-          "The `/title` command is no longer supported. Please send a message with 'd', 'j', 'a', or 's' to request a title.",
-        ephemeral: true, // This makes the reply visible only to the user who invoked the command
-      });
-      return;
-    } else if (commandName === "register") {
-      const username = interaction.options.getString("username");
-      const kingdom = parseInt(process.env.KINGDOM, 10); // Get kingdom from environment variable and cast to integer
-      const x = interaction.options.getInteger("x");
-      const y = interaction.options.getInteger("y");
-      const userId = interaction.user.id;
+//     if (commandName === "title") {
+//       await interaction.followUp({
+//         content:
+//           "The `/title` command is no longer supported. Please send a message with 'd', 'j', 'a', or 's' to request a title.",
+//         ephemeral: true, // This makes the reply visible only to the user who invoked the command
+//       });
+//       return;
+//     } else if (commandName === "register") {
+//       const username = interaction.options.getString("username");
+//       const kingdom = parseInt(process.env.KINGDOM, 10); // Get kingdom from environment variable and cast to integer
+//       const x = interaction.options.getInteger("x");
+//       const y = interaction.options.getInteger("y");
+//       const userId = interaction.user.id;
 
-      const user = await User.findOne({ userId });
+//       const user = await User.findOne({ userId });
 
-      if (user) {
-        user.username = username;
-        user.kingdom = kingdom;
-        user.x = x;
-        user.y = y;
-        await user.save();
-        await interaction.followUp(
-          `Your details have been updated: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
-        );
-      } else {
-        const newUser = new User({ userId, username, kingdom, x, y });
-        await newUser.save();
-        await interaction.followUp(
-          `Your details have been registered: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
-        );
-      }
-    } else if (commandName === "settimer") {
-      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-        id.trim()
-      );
-      const userId = interaction.user.id;
+//       if (user) {
+//         user.username = username;
+//         user.kingdom = kingdom;
+//         user.x = x;
+//         user.y = y;
+//         await user.save();
+//         await interaction.followUp(
+//           `Your details have been updated: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+//         );
+//       } else {
+//         const newUser = new User({ userId, username, kingdom, x, y });
+//         await newUser.save();
+//         await interaction.followUp(
+//           `Your details have been registered: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+//         );
+//       }
+//     } else if (commandName === "settimer") {
+//       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
+//         id.trim()
+//       );
+//       const userId = interaction.user.id;
 
-      // Check if the user is a superuser
-      if (!superUserIds.includes(userId)) {
-        await interaction.followUp(
-          "You do not have permission to use this command."
-        );
-        return;
-      }
+//       // Check if the user is a superuser
+//       if (!superUserIds.includes(userId)) {
+//         await interaction.followUp(
+//           "You do not have permission to use this command."
+//         );
+//         return;
+//       }
 
-      const title = interaction.options.getString("title").trim();
-      const duration = interaction.options.getInteger("duration");
-      const kingdom = parseInt(process.env.KINGDOM, 10); // Get kingdom from environment variable and cast to integer
+//       const title = interaction.options.getString("title").trim();
+//       const duration = interaction.options.getInteger("duration");
+//       const kingdom = parseInt(process.env.KINGDOM, 10); // Get kingdom from environment variable and cast to integer
 
-      // Validate kingdom format (4-digit number)
-      if (!/^\d{4}$/.test(kingdom.toString())) {
-        await interaction.followUp("Kingdom must be a 4-digit number.");
-        return;
-      }
+//       // Validate kingdom format (4-digit number)
+//       if (!/^\d{4}$/.test(kingdom.toString())) {
+//         await interaction.followUp("Kingdom must be a 4-digit number.");
+//         return;
+//       }
 
-      // Check for a valid title
-      const validTitles = ["Justice", "Duke", "Architect", "Scientist"];
-      if (!validTitles.includes(title)) {
-        await interaction.followUp("Invalid title specified.");
-        return;
-      }
+//       // Check for a valid title
+//       const validTitles = ["Justice", "Duke", "Architect", "Scientist"];
+//       if (!validTitles.includes(title)) {
+//         await interaction.followUp("Invalid title specified.");
+//         return;
+//       }
 
-      try {
-        // Attempt to update or insert the timer for the specified title and kingdom
-        const result = await TitleDuration.updateOne(
-          { title: title, kingdom: kingdom }, // Search criteria
-          { duration: duration }, // Update to perform
-          { upsert: true } // Create a new document if none matches
-        );
+//       try {
+//         // Attempt to update or insert the timer for the specified title and kingdom
+//         const result = await TitleDuration.updateOne(
+//           { title: title, kingdom: kingdom }, // Search criteria
+//           { duration: duration }, // Update to perform
+//           { upsert: true } // Create a new document if none matches
+//         );
 
-        // Provide feedback based on the outcome
-        if (result.upsertedCount > 0) {
-          await interaction.followUp(
-            `Timer for ${title} has been set to ${duration} seconds in kingdom ${kingdom}.`
-          );
-        } else {
-          await interaction.followUp(
-            `Timer for ${title} has been updated to ${duration} seconds in kingdom ${kingdom}.`
-          );
-        }
-      } catch (error) {
-        console.error(
-          "An unexpected error occurred while updating the timer:",
-          error
-        );
+//         // Provide feedback based on the outcome
+//         if (result.upsertedCount > 0) {
+//           await interaction.followUp(
+//             `Timer for ${title} has been set to ${duration} seconds in kingdom ${kingdom}.`
+//           );
+//         } else {
+//           await interaction.followUp(
+//             `Timer for ${title} has been updated to ${duration} seconds in kingdom ${kingdom}.`
+//           );
+//         }
+//       } catch (error) {
+//         console.error(
+//           "An unexpected error occurred while updating the timer:",
+//           error
+//         );
 
-        // Handle duplicate key errors explicitly
-        if (error.code === 11000) {
-          await interaction.followUp(
-            "Duplicate entry detected. Please check if the title already exists for the specified kingdom."
-          );
-        } else {
-          await interaction.followUp(
-            "An unexpected error occurred while setting the timer."
-          );
-        }
-      }
-    } else if (commandName === "locktitle") {
-      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-        id.trim()
-      );
-      const userId = interaction.user.id;
+//         // Handle duplicate key errors explicitly
+//         if (error.code === 11000) {
+//           await interaction.followUp(
+//             "Duplicate entry detected. Please check if the title already exists for the specified kingdom."
+//           );
+//         } else {
+//           await interaction.followUp(
+//             "An unexpected error occurred while setting the timer."
+//           );
+//         }
+//       }
+//     } else if (commandName === "locktitle") {
+//       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
+//         id.trim()
+//       );
+//       const userId = interaction.user.id;
 
-      // Check if the user is a superuser
-      if (!superUserIds.includes(userId)) {
-        await interaction.followUp(
-          "You do not have permission to use this command."
-        );
-        return;
-      }
-      const title = interaction.options.getString("title");
+//       // Check if the user is a superuser
+//       if (!superUserIds.includes(userId)) {
+//         await interaction.followUp(
+//           "You do not have permission to use this command."
+//         );
+//         return;
+//       }
+//       const title = interaction.options.getString("title");
 
-      const user = await User.findOne({ userId: interaction.user.id });
-      if (user && user.kingdom) {
-        const kingdom = process.env.KINGDOM;
+//       const user = await User.findOne({ userId: interaction.user.id });
+//       if (user && user.kingdom) {
+//         const kingdom = process.env.KINGDOM;
 
-        // Lock the title for the user's kingdom
-        const lockedTitle = await LockedTitle.findOneAndUpdate(
-          { title, kingdom },
-          { isLocked: true }, // Lock the title
-          { upsert: true, new: true }
-        );
+//         // Lock the title for the user's kingdom
+//         const lockedTitle = await LockedTitle.findOneAndUpdate(
+//           { title, kingdom },
+//           { isLocked: true }, // Lock the title
+//           { upsert: true, new: true }
+//         );
 
-        if (lockedTitle) {
-          await interaction.followUp(
-            `Title "${title}" has been locked for kingdom ${kingdom}.`
-          );
-        } else {
-          await interaction.followUp("There was an error locking the title.");
-        }
-      } else {
-        await interaction.followUp(
-          "You haven't registered your username and kingdom. Please use `/register [your_username] [x] [y]`."
-        );
-      }
-    } else if (commandName === "unlocktitle") {
-      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-        id.trim()
-      );
-      const userId = interaction.user.id;
+//         if (lockedTitle) {
+//           await interaction.followUp(
+//             `Title "${title}" has been locked for kingdom ${kingdom}.`
+//           );
+//         } else {
+//           await interaction.followUp("There was an error locking the title.");
+//         }
+//       } else {
+//         await interaction.followUp(
+//           "You haven't registered your username and kingdom. Please use `/register [your_username] [x] [y]`."
+//         );
+//       }
+//     } else if (commandName === "unlocktitle") {
+//       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
+//         id.trim()
+//       );
+//       const userId = interaction.user.id;
 
-      // Check if the user is a superuser
-      if (!superUserIds.includes(userId)) {
-        await interaction.followUp(
-          "You do not have permission to use this command."
-        );
-        return;
-      }
-      const title = interaction.options.getString("title");
+//       // Check if the user is a superuser
+//       if (!superUserIds.includes(userId)) {
+//         await interaction.followUp(
+//           "You do not have permission to use this command."
+//         );
+//         return;
+//       }
+//       const title = interaction.options.getString("title");
 
-      const user = await User.findOne({ userId: interaction.user.id });
-      if (user && user.kingdom) {
-        const kingdom = process.env.KINGDOM;
+//       const user = await User.findOne({ userId: interaction.user.id });
+//       if (user && user.kingdom) {
+//         const kingdom = process.env.KINGDOM;
 
-        // Unlock the title for the user's kingdom
-        const lockedTitle = await LockedTitle.findOneAndUpdate(
-          { title, kingdom },
-          { isLocked: false }, // Unlock the title
-          { new: true }
-        );
+//         // Unlock the title for the user's kingdom
+//         const lockedTitle = await LockedTitle.findOneAndUpdate(
+//           { title, kingdom },
+//           { isLocked: false }, // Unlock the title
+//           { new: true }
+//         );
 
-        if (lockedTitle) {
-          await interaction.followUp(
-            `Title "${title}" has been unlocked for kingdom ${kingdom}.`
-          );
-        } else {
-          await interaction.followUp(
-            `No locked title found for "${title}" in kingdom ${kingdom}.`
-          );
-        }
-      } else {
-        await interaction.followUp(
-          "You haven't registered your username and kingdom. Please use `/register [your_username] [x] [y]`."
-        );
-      }
-    } else if (commandName === "resetbot") {
-      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-        id.trim()
-      );
-      const userId = interaction.user.id;
+//         if (lockedTitle) {
+//           await interaction.followUp(
+//             `Title "${title}" has been unlocked for kingdom ${kingdom}.`
+//           );
+//         } else {
+//           await interaction.followUp(
+//             `No locked title found for "${title}" in kingdom ${kingdom}.`
+//           );
+//         }
+//       } else {
+//         await interaction.followUp(
+//           "You haven't registered your username and kingdom. Please use `/register [your_username] [x] [y]`."
+//         );
+//       }
+//     } else if (commandName === "resetbot") {
+//       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
+//         id.trim()
+//       );
+//       const userId = interaction.user.id;
 
-      // Check if the user is a superuser
-      if (!superUserIds.includes(userId)) {
-        await interaction.followUp(
-          "You do not have permission to use this command."
-        );
-        return;
-      }
+//       // Check if the user is a superuser
+//       if (!superUserIds.includes(userId)) {
+//         await interaction.followUp(
+//           "You do not have permission to use this command."
+//         );
+//         return;
+//       }
 
-      const deviceId = process.env.EMULATOR_DEVICE_ID;
+//       const deviceId = process.env.EMULATOR_DEVICE_ID;
 
-      // Close Rise of Kingdoms app using ADB
-      exec(
-        `adb -s ${deviceId} shell am force-stop com.lilithgame.roc.gp`,
-        (error) => {
-          if (error) {
-            console.error(`Error stopping the app: ${error.message}`);
-            return interaction.followUp(
-              "Failed to stop the app. Please try again."
-            );
-          }
+//       // Close Rise of Kingdoms app using ADB
+//       exec(
+//         `adb -s ${deviceId} shell am force-stop com.lilithgame.roc.gp`,
+//         (error) => {
+//           if (error) {
+//             console.error(`Error stopping the app: ${error.message}`);
+//             return interaction.followUp(
+//               "Failed to stop the app. Please try again."
+//             );
+//           }
 
-          // Start Rise of Kingdoms app again
-          exec(
-            `adb -s ${deviceId} shell monkey -p com.lilithgame.roc.gp -c android.intent.category.LAUNCHER 1`,
-            (error) => {
-              if (error) {
-                console.error(`Error starting the app: ${error.message}`);
-                return interaction.followUp(
-                  "Failed to start the app. Please try again."
-                );
-              }
-              setTimeout(() => {
-                interaction.followUp("App has been reset successfully!");
-              }, 25000);
-            }
-          );
-        }
-      );
-    } else {
-      throw new Error("Unknown command");
-    }
-  } catch (error) {
-    console.log("Error:", error);
-    if (error.message === "Title button not found in the ADB command.") {
-      await interaction.followUp(
-        "I could not find your city. Please make sure your coordinates are correct and try again."
-      );
-    } else if (error.message === "Unknown command") {
-      await interaction.followUp("Unknown command. Please try again.");
-    } else {
-      console.error("An unexpected error occurred:", error);
-      await interaction.followUp(
-        "An unexpected error occurred. Please try again later."
-      );
-    }
-    // Improved error handling
-    if (error.code === "ECONNRESET") {
-      console.error("Network error: Connection reset. Retrying...");
-      await interaction.followUp("A network error occurred. Please try again.");
-    } else {
-      console.error("An unexpected error occurred:", error);
-      await interaction.followUp(
-        "An unexpected error occurred. Please try again later."
-      );
-    }
-  }
-});
+//           // Start Rise of Kingdoms app again
+//           exec(
+//             `adb -s ${deviceId} shell monkey -p com.lilithgame.roc.gp -c android.intent.category.LAUNCHER 1`,
+//             (error) => {
+//               if (error) {
+//                 console.error(`Error starting the app: ${error.message}`);
+//                 return interaction.followUp(
+//                   "Failed to start the app. Please try again."
+//                 );
+//               }
+//               setTimeout(() => {
+//                 interaction.followUp("App has been reset successfully!");
+//               }, 25000);
+//             }
+//           );
+//         }
+//       );
+//     } else {
+//       throw new Error("Unknown command");
+//     }
+//   } catch (error) {
+//     console.log("Error:", error);
+//     if (error.message === "Title button not found in the ADB command.") {
+//       await interaction.followUp(
+//         "I could not find your city. Please make sure your coordinates are correct and try again."
+//       );
+//     } else if (error.message === "Unknown command") {
+//       await interaction.followUp("Unknown command. Please try again.");
+//     } else {
+//       console.error("An unexpected error occurred:", error);
+//       await interaction.followUp(
+//         "An unexpected error occurred. Please try again later."
+//       );
+//     }
+//     // Improved error handling
+//     if (error.code === "ECONNRESET") {
+//       console.error("Network error: Connection reset. Retrying...");
+//       await interaction.followUp("A network error occurred. Please try again.");
+//     } else {
+//       console.error("An unexpected error occurred:", error);
+//       await interaction.followUp(
+//         "An unexpected error occurred. Please try again later."
+//       );
+//     }
+//   }
+// });
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
@@ -319,32 +319,32 @@ client.on("messageCreate", async (message) => {
   const content = message.content.trim();
   const args = content.split(/\s+/); // Split message content by spaces
 
-  // Handle 'register' command (self-registration)
-  if (args[0].toLowerCase() === "register") {
-    // Check if there are enough arguments for username, x, and y
-    if (args.length < 4) {
-      await message.reply(
-        "Please provide a username and coordinates in the format: `register <username> <x> <y>`."
-      );
-      return;
-    }
+  try {
+    // Handle 'register' command (self-registration)
+    if (args[0].toLowerCase() === "register") {
+      // Check if there are enough arguments for username, x, and y
+      if (args.length < 4) {
+        await message.reply(
+          "Please provide a username and coordinates in the format: `register <username> <x> <y>`."
+        );
+        return;
+      }
 
-    const username = args[1];
-    const x = parseInt(args[2], 10);
-    const y = parseInt(args[3], 10);
+      const username = args[1];
+      const x = parseInt(args[2], 10);
+      const y = parseInt(args[3], 10);
 
-    // Validate the coordinates
-    if (isNaN(x) || isNaN(y)) {
-      await message.reply(
-        "Invalid coordinates. Please enter valid numbers for x and y."
-      );
-      return;
-    }
+      // Validate the coordinates
+      if (isNaN(x) || isNaN(y)) {
+        await message.reply(
+          "Invalid coordinates. Please enter valid numbers for x and y."
+        );
+        return;
+      }
 
-    const userId = message.author.id;
-    const kingdom = parseInt(process.env.KINGDOM, 10); // Get the kingdom from environment variable
+      const userId = message.author.id;
+      const kingdom = parseInt(process.env.KINGDOM, 10); // Get the kingdom from environment variable
 
-    try {
       const user = await User.findOne({ userId });
 
       if (user) {
@@ -365,51 +365,44 @@ client.on("messageCreate", async (message) => {
           `You have been registered: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       }
-    } catch (error) {
-      console.error("Error registering user:", error);
-      await message.reply(
-        "There was an error with your registration. Please try again later."
-      );
-    }
-    return;
-  }
-
-  // Handle 'registeruser' command (superuser registration of others)
-  if (args[0].toLowerCase() === "registeruser") {
-    const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-      id.trim()
-    );
-    const userId = message.author.id;
-
-    // Check if the user is a superuser
-    if (!superUserIds.includes(userId)) {
-      await message.reply("You do not have permission to use this command.");
       return;
     }
 
-    // Validate the correct number of arguments for registeruser
-    if (args.length !== 5) {
-      await message.reply(
-        "Invalid command format. Please use: `registeruser <discordid> <username> <x> <y>`."
+    // Handle 'registeruser' command (superuser registration of others)
+    if (args[0].toLowerCase() === "registeruser") {
+      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
+        id.trim()
       );
-      return;
-    }
+      const userId = message.author.id;
 
-    const targetUserId = args[1]; // Discord ID of the user to register
-    const username = args[2];
-    const x = parseInt(args[3], 10);
-    const y = parseInt(args[4], 10);
-    const kingdom = parseInt(process.env.KINGDOM, 10); // Get the kingdom from environment
+      // Check if the user is a superuser
+      if (!superUserIds.includes(userId)) {
+        await message.reply("You do not have permission to use this command.");
+        return;
+      }
 
-    // Validate coordinates
-    if (isNaN(x) || isNaN(y)) {
-      await message.reply(
-        "Invalid coordinates. Please provide valid integers for x and y."
-      );
-      return;
-    }
+      // Validate the correct number of arguments for registeruser
+      if (args.length !== 5) {
+        await message.reply(
+          "Invalid command format. Please use: `registeruser <discordid> <username> <x> <y>`."
+        );
+        return;
+      }
 
-    try {
+      const targetUserId = args[1]; // Discord ID of the user to register
+      const username = args[2];
+      const x = parseInt(args[3], 10);
+      const y = parseInt(args[4], 10);
+      const kingdom = parseInt(process.env.KINGDOM, 10); // Get the kingdom from environment
+
+      // Validate coordinates
+      if (isNaN(x) || isNaN(y)) {
+        await message.reply(
+          "Invalid coordinates. Please provide valid integers for x and y."
+        );
+        return;
+      }
+
       const user = await User.findOne({ userId: targetUserId });
 
       if (user) {
@@ -436,29 +429,22 @@ client.on("messageCreate", async (message) => {
           `User with Discord ID ${targetUserId} has been registered: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       }
-    } catch (error) {
-      console.error("Error registering user:", error);
-      await message.reply(
-        "An error occurred while registering the user. Please try again."
-      );
-    }
-    return;
-  }
-
-  // Handle logs command to view successes and failures
-  if (args[0].toLowerCase() === "logs") {
-    const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-      id.trim()
-    );
-    const userId = message.author.id;
-
-    // Check if the user is a superuser
-    if (!superUserIds.includes(userId)) {
-      await message.reply("You do not have permission to view the logs.");
       return;
     }
 
-    try {
+    // Handle logs command to view successes and failures
+    if (args[0].toLowerCase() === "logs") {
+      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
+        id.trim()
+      );
+      const userId = message.author.id;
+
+      // Check if the user is a superuser
+      if (!superUserIds.includes(userId)) {
+        await message.reply("You do not have permission to view the logs.");
+        return;
+      }
+
       const successCount = await TitleRequestLog.countDocuments({
         status: "successful", // Corrected field name
       });
@@ -469,43 +455,61 @@ client.on("messageCreate", async (message) => {
       await message.reply(
         `Title Request Logs:\nSuccesses: ${successCount}\nFailures: ${failureCount}`
       );
-    } catch (error) {
-      console.error("Error fetching logs:", error);
-      await message.reply("An error occurred while fetching the logs.");
+      return;
     }
-    return;
-  }
 
-  // Define title variations
-  const titleMappings = {
-    Duke: ["d", "duke", "duk", "D"],
-    Justice: ["j", "justice", "jus", "J"],
-    Architect: ["a", "arch", "architect", "A"],
-    Scientist: ["s", "scientist", "sci", "S"],
-  };
+    // Define title variations
+    const titleMappings = {
+      Duke: ["d", "duke", "duk", "D"],
+      Justice: ["j", "justice", "jus", "J"],
+      Architect: ["a", "arch", "architect", "A"],
+      Scientist: ["s", "scientist", "sci", "S"],
+    };
 
-  let title = null;
-  for (const [key, variations] of Object.entries(titleMappings)) {
-    if (variations.includes(message.content.toLowerCase())) {
-      title = key;
-      break;
+    let title = null;
+    for (const [key, variations] of Object.entries(titleMappings)) {
+      if (variations.includes(message.content.toLowerCase())) {
+        title = key;
+        break;
+      }
     }
+
+    if (!title) return;
+
+    const userId = message.author.id;
+
+    // Check if the user is requesting the same title as their last request
+    if (lastUserRequest[userId] === title) {
+      await message.reply(
+        `You cannot request the title "${title}" twice in a row. Please choose a different title.`
+      );
+      return;
+    }
+
+    // Ensure title requests are only accepted every 4 seconds
+    if (!client.lastTitleRequestTime) {
+      client.lastTitleRequestTime = {};
+    }
+
+    const now = Date.now();
+    const lastRequestTime = client.lastTitleRequestTime[userId] || 0;
+    const timeSinceLastRequest = now - lastRequestTime;
+
+    if (timeSinceLastRequest < 4000) {
+      await message.reply(
+        "You are sending requests too quickly. Please wait a few seconds before trying again."
+      );
+      return;
+    }
+
+    client.lastTitleRequestTime[userId] = now;
+
+    // Centralized handling of title requests
+    await handleTitleRequest(userId, title, message);
+  } catch (error) {
+    console.error("Error handling message:", error);
+    await message.reply("An error occurred while processing your request.");
   }
-
-  if (!title) return;
-
-  const userId = message.author.id;
-
-  // Check if the user is requesting the same title as their last request
-  if (lastUserRequest[userId] === title) {
-    await message.reply(
-      `You cannot request the title "${title}" twice in a row. Please choose a different title.`
-    );
-    return;
-  }
-
-  // Centralized handling of title requests
-  await handleTitleRequest(userId, title, message);
 });
 
 function runRandomAdbCommands(deviceId) {
@@ -639,6 +643,7 @@ let isAdbRunningGlobal = false;
 
 async function processGlobalAdbQueue() {
   if (isAdbRunningGlobal || adbQueue.length === 0) {
+    console.log("Global ADB queue is empty or ADB is already running.");
     return; // Exit if ADB is already running or queue is empty
   }
 
@@ -854,15 +859,7 @@ function execAsync(command, retries = 3) {
   });
 }
 
-async function runAdbCommand(
-  userId,
-  x,
-  y,
-  title,
-  kingdom,
-  interaction,
-  message
-) {
+async function runAdbCommand(userId, x, y, title, kingdom) {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
 
   // Run the check_state.py script before doing anything else
@@ -908,12 +905,8 @@ async function runAdbCommand(
   }
 
   if (!isAdbRunning[kingdom]?.[title]) {
-    const isHome = await checkIfAtHome(deviceId, interaction, message, userId);
-    if (!isHome) {
-      console.log("Not at home. Returning home before processing the request.");
-      await returnHome(deviceId);
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // Delay for animation
-    }
+    await returnHome(deviceId);
+    await new Promise((resolve) => setTimeout(resolve, 4000));
   }
 
   const titleCommands = {
@@ -958,15 +951,48 @@ async function runAdbCommand(
         // Execute tap command
         await execAsync(cityTapCommand);
 
-        await new Promise((resolve) => setTimeout(resolve, 1000)); // Short delay to allow the tap to register
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
-        // Take a screenshot for analysis with a unique name
         const screenshotFilename = `./temp/screenshot_${attempt}_${deviceId}.png`;
         const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
         await execAsync(screenshotCommand);
 
         await new Promise((resolve) => setTimeout(resolve, 1000));
+        const botStuckCheckResult = await new Promise((resolve) => {
+          exec(
+            `python check_bot_stuck.py ${screenshotFilename}`,
+            (error, stdout, stderr) => {
+              // Include 'stderr' here
+              if (error) {
+                console.error(
+                  `Error running check_bot_stuck.py: ${error.message}`
+                );
+                resolve({
+                  success: false,
+                  error: "Bot stuck check script execution error",
+                });
+                return;
+              }
+              if (stderr) {
+                console.error(`Stderr from check_bot_stuck.py: ${stderr}`);
+                resolve({
+                  success: false,
+                  error: "Bot stuck check script stderr",
+                });
+                return;
+              }
+              const result = JSON.parse(stdout.trim());
+              resolve(result);
+            }
+          );
+        });
 
+        if (botStuckCheckResult.success) {
+          console.log("Bot is stuck.");
+          await returnHome(deviceId);
+          await new Promise((resolve) => setTimeout(resolve, 4000));
+          return await runAdbCommand(userId, x, y, title, kingdom);
+        }
         const titleCheckResult = await new Promise((resolve) => {
           exec(
             `python ./check_title.py ${screenshotFilename} ${deviceId}`,
@@ -1062,12 +1088,15 @@ async function runAdbCommand(
           return;
         }
 
+        // Add a longer delay after taking a screenshot to ensure it's properly saved
+        const delay = commands[index].includes("screencap") && 500;
+
         // Add a delay before executing the next command
         setTimeout(() => {
           executeCommandWithDelay(commands, index + 1)
             .then(resolve)
             .catch(reject); // Resolve after all commands
-        }, 1500); // 1 second delay
+        }, delay); // Custom delay after the screencap command
       });
     });
   }
@@ -1084,7 +1113,7 @@ async function runAdbCommand(
     }
 
     // Set a delay of 1 second before executing the title-specific commands
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
 
     // Execute the title-specific commands after the title check with a delay
     await executeCommandWithDelay(titleCommands[title], 0);
@@ -1180,7 +1209,7 @@ async function handleTitleRequest(userId, title, interaction) {
     } else {
       if (!interaction.replied) {
         await interaction.reply(
-          "You haven't registered your username and coordinates. Please use `/register [your_username] [x] [y]`."
+          "You haven't registered your username and coordinates. Please type the following: `register [your_username] [x] [y]`."
         );
       }
     }
