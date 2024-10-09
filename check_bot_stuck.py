@@ -5,7 +5,7 @@ import json
 import sys
 
 def is_bot_stuck(screenshot_path):
-    template_paths = ['./resources/bot_stuck.png']
+    template_paths = ['./resources/bot_stuck.png', './resources/map_button.png']
 
     # Load the screenshot
     img_rgb = cv2.imread(screenshot_path)

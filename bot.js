@@ -982,6 +982,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
                 return;
               }
               const result = JSON.parse(stdout.trim());
+              console.log("Bot stuck check result:", result);
               resolve(result);
             }
           );
@@ -1089,7 +1090,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
         }
 
         // Add a longer delay after taking a screenshot to ensure it's properly saved
-        const delay = commands[index].includes("screencap") && 500;
+        const delay = commands[index].includes("screencap") && 1000;
 
         // Add a delay before executing the next command
         setTimeout(() => {
