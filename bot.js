@@ -630,7 +630,7 @@ setInterval(() => {
     Object.values(kingdom).some((isRunning) => isRunning)
   );
 
-  if (!isAnyAdbRunning) {
+  if (!isAnyAdbRunning && !isAdbRunningGlobal) {
     runCheckState();
   } else {
     console.log("ADB functions are currently running. Skipping runCheckState.");
@@ -906,7 +906,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
 
   if (!isAdbRunning[kingdom]?.[title]) {
     await returnHome(deviceId);
-    await new Promise((resolve) => setTimeout(resolve, 4000));
+    await new Promise((resolve) => setTimeout(resolve, 3000));
   }
 
   const titleCommands = {
@@ -982,7 +982,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
                 return;
               }
               const result = JSON.parse(stdout.trim());
-              console.log("Bot stuck check result:", result);
+              console.log("Bot stuck check result:", result.status);
               resolve(result);
             }
           );
@@ -991,7 +991,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
         if (botStuckCheckResult.success) {
           console.log("Bot is stuck.");
           await returnHome(deviceId);
-          await new Promise((resolve) => setTimeout(resolve, 4000));
+          await new Promise((resolve) => setTimeout(resolve, 3000));
           return await runAdbCommand(userId, x, y, title, kingdom);
         }
         const titleCheckResult = await new Promise((resolve) => {
@@ -1089,15 +1089,12 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
           return;
         }
 
-        // Add a longer delay after taking a screenshot to ensure it's properly saved
-        const delay = commands[index].includes("screencap") && 1000;
-
         // Add a delay before executing the next command
         setTimeout(() => {
           executeCommandWithDelay(commands, index + 1)
             .then(resolve)
             .catch(reject); // Resolve after all commands
-        }, delay); // Custom delay after the screencap command
+        }, 500); // Custom delay after the screencap command
       });
     });
   }
