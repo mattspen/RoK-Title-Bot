@@ -1,22 +1,21 @@
-// models/TitleRequestLog.js
 import mongoose from "mongoose";
 
-const titleRequestLogSchema = new mongoose.Schema({
+const TitleRequestLogSchema = new mongoose.Schema({
   userId: { type: String, required: true },
-  username: { type: String, required: true },
   title: { type: String, required: true },
   kingdom: { type: Number, required: true },
+  username: { type: String, required: true },
   status: {
     type: String,
+    enum: ["successful", "unsuccessful", "pending"], // Ensure "pending" is included
     required: true,
-    enum: ["successful", "unsuccessful"],
   },
-  timestamp: { type: Date, default: Date.now },
 });
 
 const TitleRequestLog = mongoose.model(
   "TitleRequestLog",
-  titleRequestLogSchema
+  TitleRequestLogSchema
 );
 
-export default TitleRequestLog;
+// Ensure you export the model correctly
+export default TitleRequestLog; // Default export
