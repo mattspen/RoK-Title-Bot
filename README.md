@@ -96,5 +96,3 @@ Logs will be maintained in the database for title request successes and failures
 This project is licensed under the MIT License.
 
 ---
-
-Enjoy seamless title management in Rise of Kingdoms with the Title Oracle!
