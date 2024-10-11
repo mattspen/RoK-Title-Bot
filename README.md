@@ -45,6 +45,9 @@ The **Rise of Kingdoms Title Oracle** is a Discord bot designed to manage and au
 - **Node.js** v14 or higher
 - **MongoDB** for user and log data storage
 - **ADB (Android Debug Bridge)** if using the `resetbot` feature for interacting with an emulator
+- **Python 3.x** installed on your system.
+- **OpenCV** for Python installed (`opencv-python`, `opencv-python-headless`).
+- **NumPy** installed (`numpy` is typically a dependency of OpenCV).
 
 ## Installation
 
@@ -57,6 +60,7 @@ The **Rise of Kingdoms Title Oracle** is a Discord bot designed to manage and au
 2. Install dependencies.
     ```bash
     npm install
+    pip install opencv-python opencv-python-headless numpy
     ```
 
 3. Set up your `.env` file with the following values:
@@ -67,11 +71,6 @@ The **Rise of Kingdoms Title Oracle** is a Discord bot designed to manage and au
     KINGDOM=<your-in-game-kingdom-id>
     SUPERUSER_ID=<comma-separated-list-of-superuser-discord-ids>
     EMULATOR_DEVICE_ID=<optional, if using resetbot feature>
-    ```
-
-4. Run the bot.
-    ```bash
-    npm start
     ```
 
 ## Environment Variables
