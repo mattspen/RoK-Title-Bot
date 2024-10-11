@@ -410,78 +410,6 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-function runRandomAdbCommands(deviceId) {
-  // Check if any ADB function is currently running
-  const isAnyAdbRunning = Object.values(isAdbRunning).some((kingdom) =>
-    Object.values(kingdom).some((isRunning) => isRunning)
-  );
-
-  if (isAnyAdbRunning) {
-    return;
-  }
-
-  const centerX = 960; // Center X for 1080p
-  const centerY = 540; // Center Y for 1080p
-  const offsetRange = 100; // Range for random offset around the center
-
-  // Generate random coordinates around the center
-  const x = getRandomInt(centerX - offsetRange, centerX + offsetRange);
-  const y = getRandomInt(centerY - offsetRange, centerY + offsetRange);
-
-  // Randomly choose between tap, double tap, or swipe
-  const action = getRandomInt(1, 3);
-
-  if (action === 1) {
-    // Tap action
-    exec(`adb -s ${deviceId} shell input tap ${x} ${y}`, (error) => {
-      if (error) {
-        console.error(`Error tapping on ${deviceId}: ${error.message}`);
-      }
-    });
-  } else if (action === 2) {
-    // Double tap action
-    exec(`adb -s ${deviceId} shell input tap ${x} ${y}`, (error) => {
-      if (error) {
-        console.error(`Error double-tapping on ${deviceId}: ${error.message}`);
-      } else {
-        // Second tap after a short delay for double tap effect
-        setTimeout(() => {
-          exec(`adb -s ${deviceId} shell input tap ${x} ${y}`, (error) => {
-            if (error) {
-              console.error(
-                `Error double-tapping on ${deviceId}: ${error.message}`
-              );
-            }
-          });
-        }, 100); // 100 ms delay
-      }
-    });
-  } else {
-    // Swipe action
-    const x2 = getRandomInt(centerX - offsetRange, centerX + offsetRange);
-    const y2 = getRandomInt(centerY - offsetRange, centerY + offsetRange);
-    exec(
-      `adb -s ${deviceId} shell input swipe ${x} ${y} ${x2} ${y2}`,
-      (error) => {
-        if (error) {
-          console.error(`Error swiping on ${deviceId}: ${error.message}`);
-        } else {
-          // Return to the original position after the swipe
-          setTimeout(() => {
-            exec(`adb -s ${deviceId} shell input tap ${x} ${y}`, (error) => {
-              if (error) {
-                console.error(
-                  `Error returning to (${x}, ${y}) on ${deviceId}: ${error.message}`
-                );
-              }
-            });
-          }, 500); // Delay before returning (adjust if needed)
-        }
-      }
-    );
-  }
-}
-
 function runCheckState() {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
   if (!deviceId) {
@@ -499,9 +427,6 @@ function runCheckState() {
         );
         return;
       }
-
-      // Run random ADB commands
-      runRandomAdbCommands(deviceId);
 
       // Run the check_state.py script after taking the screenshot
       exec(
@@ -526,9 +451,8 @@ setInterval(() => {
   const isAnyAdbRunning = Object.values(isAdbRunning).some((kingdom) =>
     Object.values(kingdom).some((isRunning) => isRunning)
   );
-  console.log("are we doing stupid shit?", isAdbRunning, isAdbRunningGlobal);
+
   if (!isAnyAdbRunning && !isAdbRunningGlobal) {
-    console.log("doing stupid shit!!");
 
     runCheckState();
   } else {
