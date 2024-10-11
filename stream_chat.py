@@ -29,7 +29,7 @@ running = True
 last_request = None
 
 # Specify the kingdom for requests based on device ID
-KINGDOM_ID = 3299  # Kingdom ID for emulator-5554
+KINGDOM_ID = 0  # Kingdom ID for emulator-5554
 
 def adb_screencap(device_id):
     """Capture the screen from the emulator using ADB"""
