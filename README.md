@@ -53,8 +53,8 @@ The **Rise of Kingdoms Title Oracle** is a Discord bot designed to manage and au
 
 1. Clone the repository.
     ```bash
-    git clone https://github.com/your-repo/rise-of-kingdoms-title-oracle.git
-    cd rise-of-kingdoms-title-oracle
+    git clone https://github.com/mattspen/Rok-Title-Oracle.git
+    cd rok-title-oracle
     ```
 
 2. Install dependencies.
