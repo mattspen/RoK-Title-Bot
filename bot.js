@@ -5,8 +5,6 @@ import User from "./models/User.js";
 import { exec } from "child_process";
 import TitleDuration from "./models/setTimer.js";
 import LockedTitle from "./models/locktitle.js";
-import { returnHome } from "./helpers/returnhome.js";
-import { checkIfAtHome } from "./helpers/checkIfHome.js";
 import {
   isAdbRunning,
   isProcessing,
@@ -62,7 +60,10 @@ client.on("messageCreate", async (message) => {
 
   try {
     // Handle 'register' command (self-registration)
-    if (args[0].toLowerCase() === "register") {
+    if (
+      args[0].toLowerCase() === "register" ||
+      args[0].toLowerCase() === "/register"
+    ) {
       // Check if there are enough arguments for username, x, and y
       if (args.length < 4) {
         await message.reply(
@@ -277,6 +278,97 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
+    if (args[0].toLowerCase() === "settimer") {
+      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
+        id.trim()
+      );
+      const userId = message.author.id;
+
+      // Check if the user is a superuser
+      if (!superUserIds.includes(userId)) {
+        await message.reply("You do not have permission to use this command.");
+        return;
+      }
+
+      // Ensure correct argument count for settimer
+      if (args.length < 3) {
+        await message.reply(
+          "Invalid command format. Please use: `settimer <title> <duration>`."
+        );
+        return;
+      }
+
+      const titleInput = args[1].trim().toLowerCase();
+      const duration = parseInt(args[2], 10);
+      const kingdom = parseInt(process.env.KINGDOM, 10); // Get kingdom from environment variable
+
+      // Validate kingdom format (4-digit number)
+      if (!/^\d{4}$/.test(kingdom.toString())) {
+        await message.reply("Kingdom must be a 4-digit number.");
+        return;
+      }
+
+      // Define valid titles and their shorthand variations
+      const titleMappings = {
+        duke: ["d", "duke"],
+        justice: ["j", "justice"],
+        architect: ["a", "arch", "architect"],
+        scientist: ["s", "sci", "scientist"],
+      };
+
+      let title = null;
+
+      // Match the input with a valid title or its shorthand
+      for (const [key, variations] of Object.entries(titleMappings)) {
+        if (variations.includes(titleInput)) {
+          title = key.charAt(0).toUpperCase() + key.slice(1); // Capitalize title
+          break;
+        }
+      }
+
+      if (!title) {
+        await message.reply("Invalid title specified.");
+        return;
+      }
+
+      try {
+        // Attempt to update or insert the timer for the specified title and kingdom
+        const result = await TitleDuration.updateOne(
+          { title: title, kingdom: kingdom }, // Search criteria
+          { duration: duration }, // Update to perform
+          { upsert: true } // Create a new document if none matches
+        );
+
+        // Provide feedback based on the outcome
+        if (result.upsertedCount > 0) {
+          await message.reply(
+            `Timer for ${title} has been set to ${duration} seconds in kingdom ${kingdom}.`
+          );
+        } else {
+          await message.reply(
+            `Timer for ${title} has been updated to ${duration} seconds in kingdom ${kingdom}.`
+          );
+        }
+      } catch (error) {
+        console.error(
+          "An unexpected error occurred while updating the timer:",
+          error
+        );
+
+        // Handle duplicate key errors explicitly
+        if (error.code === 11000) {
+          await message.reply(
+            "Duplicate entry detected. Please check if the title already exists for the specified kingdom."
+          );
+        } else {
+          await message.reply(
+            "An unexpected error occurred while setting the timer."
+          );
+        }
+      }
+      return;
+    }
+
     // Handle 'resetbot' command
     if (args[0].toLowerCase() === "resetbot") {
       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
@@ -453,7 +545,6 @@ setInterval(() => {
   );
 
   if (!isAnyAdbRunning && !isAdbRunningGlobal) {
-
     runCheckState();
   } else {
     console.log("ADB functions are currently running. Skipping runCheckState.");
@@ -511,8 +602,20 @@ async function processGlobalAdbQueue() {
       timestamp: new Date(),
     });
 
-    // After successful ADB command, continue with the regular title process
-    let remainingTime = titleDurations[title];
+    let remainingTime = titleDurations[title]; // Default duration
+    const customDuration = await fetchCustomDurationFromDatabase(
+      title,
+      kingdom
+    );
+
+    // If a custom duration exists, override the default remainingTime
+    if (customDuration) {
+      remainingTime = customDuration;
+    }
+
+    console.log(`Custom or default remaining time: ${remainingTime} seconds`);
+
+    // After fetching the custom duration, send the notification
     const deviceId = process.env.EMULATOR_DEVICE_ID;
     const screenshotPath = `./temp/screenshot_${title.toLowerCase()}_${deviceId}.png`;
 
@@ -529,14 +632,6 @@ async function processGlobalAdbQueue() {
       filter,
       time: 300 * 1000,
     });
-
-    const customDuration = await fetchCustomDurationFromDatabase(
-      title,
-      kingdom
-    );
-    if (customDuration) {
-      remainingTime = customDuration;
-    }
 
     if (timers[title]) {
       clearInterval(timers[title]);
@@ -577,6 +672,7 @@ async function processGlobalAdbQueue() {
       }, 10000);
     });
 
+    // Start the timer after fetching custom duration
     timers[title] = startTimer(collector, remainingTime, title, userId);
   } catch (error) {
     const deviceId = process.env.EMULATOR_DEVICE_ID;
@@ -728,7 +824,6 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
   }
 
   if (!isAdbRunning[kingdom]?.[title]) {
-    await returnHome(deviceId);
     await new Promise((resolve) => setTimeout(resolve, 3000));
   }
 
@@ -737,25 +832,21 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
       `adb -s ${deviceId} shell input tap 440 592`,
       `adb -s ${deviceId} shell input tap 954 958`,
       `adb -s ${deviceId} exec-out screencap -p > ./temp/screenshot_justice_${deviceId}.png`,
-      `adb -s ${deviceId} shell input tap 89 978`,
     ],
     Duke: [
       `adb -s ${deviceId} shell input tap 784 592`,
       `adb -s ${deviceId} shell input tap 954 958`,
       `adb -s ${deviceId} exec-out screencap -p > ./temp/screenshot_duke_${deviceId}.png`,
-      `adb -s ${deviceId} shell input tap 89 978`,
     ],
     Architect: [
       `adb -s ${deviceId} shell input tap 1125 591`,
       `adb -s ${deviceId} shell input tap 954 958`,
       `adb -s ${deviceId} exec-out screencap -p > ./temp/screenshot_architect_${deviceId}.png`,
-      `adb -s ${deviceId} shell input tap 89 978`,
     ],
     Scientist: [
       `adb -s ${deviceId} shell input tap 1472 592`,
       `adb -s ${deviceId} shell input tap 954 958`,
       `adb -s ${deviceId} exec-out screencap -p > ./temp/screenshot_scientist_${deviceId}.png`,
-      `adb -s ${deviceId} shell input tap 89 978`,
     ],
   };
 
@@ -813,7 +904,6 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
 
         if (botStuckCheckResult.success) {
           console.log("Bot is stuck.");
-          await returnHome(deviceId);
           await new Promise((resolve) => setTimeout(resolve, 3000));
           return await runAdbCommand(userId, x, y, title, kingdom);
         }
@@ -890,7 +980,6 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
   }
 
   const initialCommands = [
-    `adb -s ${deviceId} shell input tap 91 982`,
     `adb -s ${deviceId} shell input tap 660 28`,
     `adb -s ${deviceId} shell input tap 962 215`,
     `adb -s ${deviceId} shell input text "${x}"`,
@@ -929,7 +1018,6 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
 
     // Check the result of the title check
     if (!titleCheckResult.success) {
-      await returnHome(deviceId);
       return titleCheckResult; // Early return if title check failed
     }
 
