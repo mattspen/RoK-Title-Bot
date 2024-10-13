@@ -56,15 +56,13 @@ client.on("messageCreate", async (message) => {
   if (message.channel.id !== process.env.DISCORD_CHANNEL_ID) return;
 
   const content = message.content.trim();
-  const args = content.split(/\s+/); // Split message content by spaces
+  const args = content.split(/\s+/);
 
   try {
-    // Handle 'register' command (self-registration)
     if (
       args[0].toLowerCase() === "register" ||
       args[0].toLowerCase() === "/register"
     ) {
-      // Check if there are enough arguments for username, x, and y
       if (args.length < 4) {
         await message.reply(
           "Please provide a username and coordinates in the format: `register <username> <x> <y>`."
@@ -76,7 +74,6 @@ client.on("messageCreate", async (message) => {
       const x = parseInt(args[2], 10);
       const y = parseInt(args[3], 10);
 
-      // Validate the coordinates
       if (isNaN(x) || isNaN(y)) {
         await message.reply(
           "Invalid coordinates. Please enter valid numbers for x and y."
@@ -85,12 +82,11 @@ client.on("messageCreate", async (message) => {
       }
 
       const userId = message.author.id;
-      const kingdom = parseInt(process.env.KINGDOM, 10); // Get the kingdom from environment variable
+      const kingdom = parseInt(process.env.KINGDOM, 10);
 
       const user = await User.findOne({ userId });
 
       if (user) {
-        // Update the existing user's details
         user.username = username;
         user.kingdom = kingdom;
         user.x = x;
@@ -100,7 +96,6 @@ client.on("messageCreate", async (message) => {
           `Your details have been updated: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       } else {
-        // Create a new user
         const newUser = new User({ userId, username, kingdom, x, y });
         await newUser.save();
         await message.reply(
@@ -110,20 +105,17 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    // Handle 'registeruser' command (superuser registration of others)
     if (args[0].toLowerCase() === "registeruser") {
       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
         id.trim()
       );
       const userId = message.author.id;
 
-      // Check if the user is a superuser
       if (!superUserIds.includes(userId)) {
         await message.reply("You do not have permission to use this command.");
         return;
       }
 
-      // Validate the correct number of arguments for registeruser
       if (args.length !== 5) {
         await message.reply(
           "Invalid command format. Please use: `registeruser <discordid> <username> <x> <y>`."
@@ -131,13 +123,12 @@ client.on("messageCreate", async (message) => {
         return;
       }
 
-      const targetUserId = args[1]; // Discord ID of the user to register
+      const targetUserId = args[1];
       const username = args[2];
       const x = parseInt(args[3], 10);
       const y = parseInt(args[4], 10);
-      const kingdom = parseInt(process.env.KINGDOM, 10); // Get the kingdom from environment
+      const kingdom = parseInt(process.env.KINGDOM, 10);
 
-      // Validate coordinates
       if (isNaN(x) || isNaN(y)) {
         await message.reply(
           "Invalid coordinates. Please provide valid integers for x and y."
@@ -148,7 +139,6 @@ client.on("messageCreate", async (message) => {
       const user = await User.findOne({ userId: targetUserId });
 
       if (user) {
-        // Update existing user
         user.username = username;
         user.kingdom = kingdom;
         user.x = x;
@@ -158,7 +148,6 @@ client.on("messageCreate", async (message) => {
           `User with Discord ID ${targetUserId} has been updated: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       } else {
-        // Create new user
         const newUser = new User({
           userId: targetUserId,
           username,
@@ -174,24 +163,22 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    // Handle logs command to view successes and failures
     if (args[0].toLowerCase() === "logs") {
       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
         id.trim()
       );
       const userId = message.author.id;
 
-      // Check if the user is a superuser
       if (!superUserIds.includes(userId)) {
         await message.reply("You do not have permission to view the logs.");
         return;
       }
 
       const successCount = await TitleRequestLog.countDocuments({
-        status: "successful", // Corrected field name
+        status: "successful",
       });
       const failureCount = await TitleRequestLog.countDocuments({
-        status: "unsuccessful", // Corrected field name
+        status: "unsuccessful",
       });
 
       await message.reply(
@@ -200,14 +187,12 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    // Handle 'locktitle' command
     if (args[0].toLowerCase() === "locktitle") {
       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
         id.trim()
       );
       const userId = message.author.id;
 
-      // Check if the user is a superuser
       if (!superUserIds.includes(userId)) {
         await message.reply("You do not have permission to use this command.");
         return;
@@ -219,12 +204,11 @@ client.on("messageCreate", async (message) => {
       }
 
       const title = args[1];
-      const kingdom = process.env.KINGDOM; // Get kingdom from environment variable
+      const kingdom = process.env.KINGDOM;
 
-      // Lock the title for the user's kingdom
       const lockedTitle = await LockedTitle.findOneAndUpdate(
         { title, kingdom },
-        { isLocked: true }, // Lock the title
+        { isLocked: true },
         { upsert: true, new: true }
       );
 
@@ -238,14 +222,12 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    // Handle 'unlocktitle' command
     if (args[0].toLowerCase() === "unlocktitle") {
       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
         id.trim()
       );
       const userId = message.author.id;
 
-      // Check if the user is a superuser
       if (!superUserIds.includes(userId)) {
         await message.reply("You do not have permission to use this command.");
         return;
@@ -257,12 +239,11 @@ client.on("messageCreate", async (message) => {
       }
 
       const title = args[1];
-      const kingdom = process.env.KINGDOM; // Get kingdom from environment variable
+      const kingdom = process.env.KINGDOM;
 
-      // Unlock the title for the user's kingdom
       const lockedTitle = await LockedTitle.findOneAndUpdate(
         { title, kingdom },
-        { isLocked: false }, // Unlock the title
+        { isLocked: false },
         { new: true }
       );
 
@@ -284,13 +265,11 @@ client.on("messageCreate", async (message) => {
       );
       const userId = message.author.id;
 
-      // Check if the user is a superuser
       if (!superUserIds.includes(userId)) {
         await message.reply("You do not have permission to use this command.");
         return;
       }
 
-      // Ensure correct argument count for settimer
       if (args.length < 3) {
         await message.reply(
           "Invalid command format. Please use: `settimer <title> <duration>`."
@@ -300,15 +279,13 @@ client.on("messageCreate", async (message) => {
 
       const titleInput = args[1].trim().toLowerCase();
       const duration = parseInt(args[2], 10);
-      const kingdom = parseInt(process.env.KINGDOM, 10); // Get kingdom from environment variable
+      const kingdom = parseInt(process.env.KINGDOM, 10);
 
-      // Validate kingdom format (4-digit number)
       if (!/^\d{4}$/.test(kingdom.toString())) {
         await message.reply("Kingdom must be a 4-digit number.");
         return;
       }
 
-      // Define valid titles and their shorthand variations
       const titleMappings = {
         duke: ["d", "duke"],
         justice: ["j", "justice"],
@@ -318,10 +295,9 @@ client.on("messageCreate", async (message) => {
 
       let title = null;
 
-      // Match the input with a valid title or its shorthand
       for (const [key, variations] of Object.entries(titleMappings)) {
         if (variations.includes(titleInput)) {
-          title = key.charAt(0).toUpperCase() + key.slice(1); // Capitalize title
+          title = key.charAt(0).toUpperCase() + key.slice(1);
           break;
         }
       }
@@ -332,14 +308,12 @@ client.on("messageCreate", async (message) => {
       }
 
       try {
-        // Attempt to update or insert the timer for the specified title and kingdom
         const result = await TitleDuration.updateOne(
-          { title: title, kingdom: kingdom }, // Search criteria
-          { duration: duration }, // Update to perform
-          { upsert: true } // Create a new document if none matches
+          { title: title, kingdom: kingdom },
+          { duration: duration },
+          { upsert: true }
         );
 
-        // Provide feedback based on the outcome
         if (result.upsertedCount > 0) {
           await message.reply(
             `Timer for ${title} has been set to ${duration} seconds in kingdom ${kingdom}.`
@@ -355,7 +329,6 @@ client.on("messageCreate", async (message) => {
           error
         );
 
-        // Handle duplicate key errors explicitly
         if (error.code === 11000) {
           await message.reply(
             "Duplicate entry detected. Please check if the title already exists for the specified kingdom."
@@ -369,14 +342,12 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    // Handle 'resetbot' command
     if (args[0].toLowerCase() === "resetbot") {
       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
         id.trim()
       );
       const userId = message.author.id;
 
-      // Check if the user is a superuser
       if (!superUserIds.includes(userId)) {
         await message.reply("You do not have permission to use this command.");
         return;
@@ -384,7 +355,6 @@ client.on("messageCreate", async (message) => {
 
       const deviceId = process.env.EMULATOR_DEVICE_ID;
 
-      // Close Rise of Kingdoms app using ADB
       exec(
         `adb -s ${deviceId} shell am force-stop com.lilithgame.roc.gp`,
         (error) => {
@@ -392,8 +362,6 @@ client.on("messageCreate", async (message) => {
             console.error(`Error stopping the app: ${error.message}`);
             return message.reply("Failed to stop the app. Please try again.");
           }
-
-          // Start Rise of Kingdoms app again
           exec(
             `adb -s ${deviceId} shell monkey -p com.lilithgame.roc.gp -c android.intent.category.LAUNCHER 1`,
             (error) => {
@@ -413,7 +381,6 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    // Define title variations for other commands
     const titleMappings = {
       Duke: ["d", "duke", "duk", "D"],
       Justice: ["j", "justice", "jus", "J"],
@@ -433,7 +400,6 @@ client.on("messageCreate", async (message) => {
 
     const userId = message.author.id;
 
-    // Check if the user is requesting the same title as their last request
     if (lastUserRequest[userId] === title) {
       await message.reply(
         `You cannot request the title "${title}" twice in a row. Please choose a different title.`
@@ -441,7 +407,6 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    // Ensure title requests are only accepted every 4 seconds
     if (!client.lastTitleRequestTime) {
       client.lastTitleRequestTime = {};
     }
@@ -457,20 +422,18 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    client.lastTitleRequestTime[userId] = now; // Update the last request time
-    lastUserRequest[userId] = title; // Update last user request
+    client.lastTitleRequestTime[userId] = now;
+    lastUserRequest[userId] = title;
 
-    // Fetch user data to get username and kingdom
-    const user = await User.findOne({ userId }); // Adjust according to your user identification
+    const user = await User.findOne({ userId });
     if (!user) {
       await message.reply("User not found. Please register first.");
       return;
     }
 
-    // Check if the title is locked
     const lockedTitleDoc = await LockedTitle.findOne({
       title,
-      kingdom: process.env.KINGDOM, // Ensure it's checked against the user's kingdom
+      kingdom: process.env.KINGDOM,
       isLocked: true,
     });
 
@@ -481,18 +444,16 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    // Proceed with the title request
     const titleRequestLog = new TitleRequestLog({
       userId,
       title,
-      username: user.username, // Include the username from user data
-      kingdom: user.kingdom, // Include the kingdom from user data
+      username: user.username,
+      kingdom: user.kingdom,
       status: "pending",
     });
 
     await titleRequestLog.save();
 
-    // Centralized handling of title requests
     await handleTitleRequest(userId, title, message);
   } catch (error) {
     console.error("Error processing message:", error);
@@ -509,7 +470,6 @@ function runCheckState() {
     return;
   }
 
-  // Take a screenshot before running the check_state.py script
   exec(
     `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
     (error) => {
@@ -519,8 +479,6 @@ function runCheckState() {
         );
         return;
       }
-
-      // Run the check_state.py script after taking the screenshot
       exec(
         `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
         (error, stdout, stderr) => {
@@ -539,7 +497,6 @@ function runCheckState() {
 }
 
 setInterval(() => {
-  // Check if any ADB function is currently running
   const isAnyAdbRunning = Object.values(isAdbRunning).some((kingdom) =>
     Object.values(kingdom).some((isRunning) => isRunning)
   );
@@ -551,14 +508,13 @@ setInterval(() => {
   }
 }, 120000);
 
-// Global ADB queue to handle ADB requests fairly
 let adbQueue = [];
 let isAdbRunningGlobal = false;
 
 async function processGlobalAdbQueue() {
   if (isAdbRunningGlobal || adbQueue.length === 0) {
     console.log("Global ADB queue is empty or ADB is already running.");
-    return; // Exit if ADB is already running or queue is empty
+    return;
   }
 
   isAdbRunningGlobal = true;
@@ -567,14 +523,13 @@ async function processGlobalAdbQueue() {
   try {
     const { userId, x, y, interaction, message } = request;
 
-    // Fetch user to get the username and kingdom
     const user = await User.findOne({ userId });
     if (!user) {
       throw new Error("User not found");
     }
 
-    const username = user.username; // Retrieve the username
-    const kingdom = user.kingdom; // Extract kingdom from user
+    const username = user.username;
+    const kingdom = user.kingdom;
 
     console.log(`Processing ADB command for title: ${title}, user: ${userId}`);
 
@@ -592,30 +547,27 @@ async function processGlobalAdbQueue() {
       throw new Error("Title button not found in the ADB command.");
     }
 
-    // Log the successful title request
     await TitleRequestLog.create({
       userId,
       username,
       title,
       kingdom,
-      status: "successful", // Updated to match the schema
+      status: "successful",
       timestamp: new Date(),
     });
 
-    let remainingTime = titleDurations[title]; // Default duration
+    let remainingTime = titleDurations[title];
     const customDuration = await fetchCustomDurationFromDatabase(
       title,
       kingdom
     );
 
-    // If a custom duration exists, override the default remainingTime
     if (customDuration) {
       remainingTime = customDuration;
     }
 
     console.log(`Custom or default remaining time: ${remainingTime} seconds`);
 
-    // After fetching the custom duration, send the notification
     const deviceId = process.env.EMULATOR_DEVICE_ID;
     const screenshotPath = `./temp/screenshot_${title.toLowerCase()}_${deviceId}.png`;
 
@@ -668,18 +620,17 @@ async function processGlobalAdbQueue() {
         lastUserRequest[userId] = null;
         isProcessing[title] = false;
         isAdbRunning[title] = false;
-        processQueue(title); // Process the next request in the title-specific queue
+        processQueue(title);
       }, 10000);
     });
 
-    // Start the timer after fetching custom duration
     timers[title] = startTimer(collector, remainingTime, title, userId);
   } catch (error) {
     const deviceId = process.env.EMULATOR_DEVICE_ID;
     const screenshotPath = `./temp/screenshot_city_not_found_${deviceId}.png`;
     console.log(error);
 
-    const { userId } = request; // Extract userId from request here
+    const { userId } = request;
     let errorMessage = `<@${userId}>, ran into an error while processing your request for ${title}.`;
 
     if (error.message === "Title button not found in the ADB command.") {
@@ -692,16 +643,15 @@ async function processGlobalAdbQueue() {
       }
     }
 
-    // Log the unsuccessful title request
     const user = await User.findOne({ userId });
-    const username = user ? user.username : "Unknown User"; // Handle case if user is not found
-    const kingdom = user ? user.kingdom : "Unknown Kingdom"; // Handle kingdom extraction
+    const username = user ? user.username : "Unknown User";
+    const kingdom = user ? user.kingdom : "Unknown Kingdom";
     await TitleRequestLog.create({
       userId,
       username,
       title,
       kingdom,
-      status: "unsuccessful", // Updated to match the schema
+      status: "unsuccessful",
       timestamp: new Date(),
     });
 
@@ -711,14 +661,13 @@ async function processGlobalAdbQueue() {
     setTimeout(() => processQueue(title), 10000);
   } finally {
     isAdbRunningGlobal = false;
-    processGlobalAdbQueue(); // Continue processing the next item in the ADB queue
+    processGlobalAdbQueue();
   }
 }
 
-// Modified processQueue function to add ADB request to global queue
 async function processQueue(title) {
   if (isProcessing[title] || queues[title].length === 0) {
-    return; // Exit if already processing or queue is empty
+    return;
   }
 
   isProcessing[title] = true;
@@ -730,26 +679,25 @@ async function processQueue(title) {
   );
 
   adbQueue.push({ title, request });
-  processGlobalAdbQueue(); // Ensure ADB queue starts processing
+  processGlobalAdbQueue();
 }
 
 function startTimer(collector, remainingTime, title, userId) {
   let timer = setInterval(() => {
-    remainingTime -= 1; // Decrement remaining time
+    remainingTime -= 1;
     if (remainingTime <= 0) {
-      clearInterval(timer); // Clear the timer when time runs out
+      clearInterval(timer);
       if (collector && !collector.ended) {
-        collector.stop(); // Stop the collector if not ended
+        collector.stop();
       }
     } else {
-      // Log the remaining time to the console every 30 seconds
       if (remainingTime % 30 === 0) {
         console.log(
           `User ${userId} has ${remainingTime} seconds remaining for the title "${title}".`
         );
       }
     }
-  }, 1000); // Decrement every second
+  }, 1000);
   return timer;
 }
 
@@ -781,9 +729,7 @@ function execAsync(command, retries = 3) {
 async function runAdbCommand(userId, x, y, title, kingdom) {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
 
-  // Run the check_state.py script before doing anything else
   const stateCheckResult = await new Promise((resolve) => {
-    // Take a screenshot before running the check_state.py script
     exec(
       `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
       (error) => {
@@ -794,8 +740,6 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
           resolve({ success: false, error: "Screenshot error" });
           return;
         }
-
-        // Run the check_state.py script after taking the screenshot
         exec(
           `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
           (error, stdout, stderr) => {
@@ -820,7 +764,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
   });
 
   if (!stateCheckResult.success) {
-    return stateCheckResult; // Early return if state check failed
+    return stateCheckResult;
   }
 
   if (!isAdbRunning[kingdom]?.[title]) {
@@ -862,7 +806,6 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
       const cityTapCommand = `adb -s ${deviceId} shell input tap ${cityX} ${cityY}`;
 
       try {
-        // Execute tap command
         await execAsync(cityTapCommand);
 
         await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -876,7 +819,6 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
           exec(
             `python check_bot_stuck.py ${screenshotFilename}`,
             (error, stdout, stderr) => {
-              // Include 'stderr' here
               if (error) {
                 console.error(
                   `Error running check_bot_stuck.py: ${error.message}`
@@ -958,7 +900,6 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
           );
         });
 
-        // Check if the button was found
         if (titleCheckResult.success) {
           console.log("City button found!");
           return { success: true, coordinates: titleCheckResult.coordinates };
@@ -991,8 +932,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
   ];
 
   async function executeCommandWithDelay(commands, index) {
-    if (index >= commands.length) return Promise.resolve(); // Resolve when all commands are done
-
+    if (index >= commands.length) return Promise.resolve();
     return new Promise((resolve, reject) => {
       exec(commands[index], (error, stdout) => {
         if (error) {
@@ -1001,12 +941,11 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
           return;
         }
 
-        // Add a delay before executing the next command
         setTimeout(() => {
           executeCommandWithDelay(commands, index + 1)
             .then(resolve)
-            .catch(reject); // Resolve after all commands
-        }, 500); // Custom delay after the screencap command
+            .catch(reject);
+        }, 500);
       });
     });
   }
@@ -1016,18 +955,15 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
 
     const titleCheckResult = await tapCityAndCheck();
 
-    // Check the result of the title check
     if (!titleCheckResult.success) {
-      return titleCheckResult; // Early return if title check failed
+      return titleCheckResult;
     }
 
-    // Set a delay of 1 second before executing the title-specific commands
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    // Execute the title-specific commands after the title check with a delay
     await executeCommandWithDelay(titleCommands[title], 0);
 
-    return { success: true, coordinates: titleCheckResult.coordinates }; // Return the found coordinates
+    return { success: true, coordinates: titleCheckResult.coordinates };
   } catch (error) {
     console.error(`Error processing commands for ${userId}: ${error.message}`);
     return { success: false, error: error.message };
@@ -1059,18 +995,16 @@ async function handleTitleRequest(userId, title, interaction) {
         return;
       }
 
-      // Initialize queue for the title if it doesn't exist
       if (!queues[title]) {
         queues[title] = [];
       }
 
-      // Initialize processing flag for the title if it doesn't exist
       if (!isProcessing[title]) {
         isProcessing[title] = false;
       }
 
       const request = {
-        interaction, // Either the message or interaction
+        interaction,
         userId,
         title,
         kingdom: userKingdom,
@@ -1078,23 +1012,18 @@ async function handleTitleRequest(userId, title, interaction) {
         y: user.y,
       };
 
-      // Add request to the queue for the title
       queues[title].push(request);
 
       const queuePosition = queues[title].length;
 
-      // Store the last title request for the user
       lastUserRequest[userId] = title;
 
-      // Process the queue if not already processing
       if (!isProcessing[title]) {
         processQueue(title);
       }
 
-      // Check if there are existing timers running for the title
       const isTitleTimerRunning = timers[title] != null;
 
-      // Inform the user of their position in the queue
       if (queuePosition > 1) {
         if (!interaction.replied) {
           await interaction.reply(
@@ -1103,7 +1032,6 @@ async function handleTitleRequest(userId, title, interaction) {
         }
       } else {
         if (!interaction.replied) {
-          // Only inform the user that the request is being processed immediately if no timers are running
           if (!isTitleTimerRunning) {
             await interaction.reply(
               `Your title request for ${title} is being processed immediately.`
