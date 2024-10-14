@@ -466,34 +466,38 @@ client.on("messageCreate", async (message) => {
 function runCheckState() {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
   if (!deviceId) {
-    console.error("No device ID found in environment variables.");
-    return;
+      console.error("No device ID found in environment variables.");
+      return;
   }
 
-  exec(
-    `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
-    (error) => {
-      if (error) {
-        console.error(
-          `Error taking screenshot on ${deviceId}: ${error.message}`
-        );
-        return;
-      }
+  try {
       exec(
-        `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
-        (error, stdout, stderr) => {
-          if (error) {
-            console.error(`Error on ${deviceId}: ${error.message}`);
-            return;
+          `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
+          (error) => {
+              if (error) {
+                  console.error(
+                      `Error taking screenshot on ${deviceId}: ${error.message}`
+                  );
+                  return;
+              }
+              exec(
+                  `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
+                  (error, stdout, stderr) => {
+                      if (error) {
+                          console.error(`Error on ${deviceId}: ${error.message}`);
+                          return;
+                      }
+                      if (stderr) {
+                          console.error(`Stderr on ${deviceId}: ${stderr}`);
+                          return;
+                      }
+                  }
+              );
           }
-          if (stderr) {
-            console.error(`Stderr on ${deviceId}: ${stderr}`);
-            return;
-          }
-        }
       );
-    }
-  );
+  } catch (error) {
+      console.error(`Unexpected error while executing ADB command: ${error.message}`);
+  }
 }
 
 setInterval(() => {
