@@ -428,6 +428,7 @@ client.on("messageCreate", async (message) => {
     const user = await User.findOne({ userId });
     if (!user) {
       await message.reply("User not found. Please register first.");
+      lastUserRequest[userId] = null;
       return;
     }
 
@@ -441,6 +442,7 @@ client.on("messageCreate", async (message) => {
       await message.reply(
         `The title "${title}" is currently locked and cannot be requested.`
       );
+      lastUserRequest[userId] = null;
       return;
     }
 
