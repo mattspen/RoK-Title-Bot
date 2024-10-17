@@ -1,8 +1,9 @@
 import os
 import cv2
-import json
 import sys
-import subprocess  # For executing ADB commands
+import subprocess
+import json
+import random  # Import random for generating offsets
 
 def check_state(screenshot_path, device_id):
     print(f"Checking state of {device_id}...")
@@ -15,7 +16,8 @@ def check_state(screenshot_path, device_id):
     img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
 
     # Define template paths
-    template_paths = ['./resources/exit.png', './resources/notice_board_app_exit.png', './resources/exit2.png', './resources/notice_board_exit.png', './resources/verification_chest_button.png', './resources/verification_close_refresh_ok_button.png']
+    template_paths = ['./resources/exit.png', './resources/notice_board_app_exit.png', 
+                      './resources/exit2.png', './resources/notice_board_exit.png']
 
     # Initialize variables to store the best match
     best_match = {
@@ -44,8 +46,9 @@ def check_state(screenshot_path, device_id):
             best_match["confidence"] = max_val
 
         # If exit.png or notice_board_exit.png is found, return the coordinates immediately
-        if template_path in ['./resources/exit.png', './resources/exit2.png', './resources/notice_board_exit.png', './resources/notice_board_app_exit.png'] and best_match["match"]:
-            click_exit_button(device_id, best_match["location"])  # Click the exit button
+        if template_path in ['./resources/exit.png', './resources/exit2.png', 
+                             './resources/notice_board_exit.png', './resources/notice_board_app_exit.png'] and best_match["match"]:
+            click_exit_button(device_id, best_match["location"], template.shape[:2])  # Click the exit button
             
             # Save the screenshot with the exit button clicked
             exit_button_clicked_path = f'./temp/exit_button_clicked_{device_id}.png'
@@ -53,31 +56,45 @@ def check_state(screenshot_path, device_id):
             print(f"Exit button clicked screenshot saved as: {exit_button_clicked_path}")
             
             return {
-                "captcha_found": True,
+                "button_found": True,
                 "confidence": best_match["confidence"],
-                "location": best_match["location"],
-                "error": None
+                "location": best_match["location"]
             }
 
-    # Prepare the response for checking if captcha is present
+    # Prepare the response for checking if the button is present
     result = {
-        "captcha_found": best_match["match"],
+        "button_found": best_match["match"],
         "confidence": best_match["confidence"],
-        "location": best_match["location"] if best_match["match"] else None,
-        "error": None if best_match["match"] else "Captcha not found."
+        "location": best_match["location"] if best_match["match"] else None
     }
     print(json.dumps(result, indent=4))
-    # If a captcha was found, save the screenshot with the matched area highlighted
+
+    # If a button was found, save the screenshot with the matched area highlighted
     if best_match["match"]:
         highlight_area(img_rgb, best_match["location"], template.shape[:2])
 
     return result
 
-def click_exit_button(device_id, location):
+def click_exit_button(device_id, location, template_shape):
     x, y = location
-    exec_command = f'adb -s {device_id} shell input tap {x} {y}'
+    # Calculate the center of the matched area
+    center_x = x + (template_shape[1] // 2)
+    center_y = y + (template_shape[0] // 2)
+    
+    # Apply a small random offset to the click position
+    offset_x = random.randint(-5, 5)  # Random offset of -5 to 5 pixels in x direction
+    offset_y = random.randint(-5, 5)  # Random offset of -5 to 5 pixels in y direction
+    
+    click_x = center_x + offset_x
+    click_y = center_y + offset_y
+    
+    # Ensure the click coordinates are within the bounds of the template area
+    click_x = max(x, min(click_x, x + template_shape[1] - 1))
+    click_y = max(y, min(click_y, y + template_shape[0] - 1))
+
+    exec_command = f'adb -s {device_id} shell input tap {click_x} {click_y}'
     subprocess.run(exec_command, shell=True)  # Execute the tap command
-    print(f"Clicked exit button at ({x}, {y}) on {device_id}")
+    print(f"Clicked exit button at ({click_x}, {click_y}) on {device_id}")
 
 def highlight_area(img, location, template_shape):
     top_left = location
