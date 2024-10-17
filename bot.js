@@ -371,15 +371,31 @@ client.on("messageCreate", async (message) => {
                   "Failed to start the app. Please try again."
                 );
               }
+
+              // Check if the app is running
               setTimeout(() => {
-                message.reply("App has been reset successfully!");
-              }, 25000);
+                exec(
+                  `adb -s ${deviceId} shell pidof com.lilithgame.roc.gp`,
+                  (error, stdout) => {
+                    if (error || !stdout.trim()) {
+                      console.error(`App is not running: ${error ? error.message : 'No process found.'}`);
+                      return message.reply(
+                        "Failed to confirm app is running. Please check manually."
+                      );
+                    }
+
+                    // App is confirmed running
+                    message.reply("App has been reset and is running successfully!");
+                  }
+                );
+              }, 25000); // Wait for 25 seconds before checking the app status
             }
           );
         }
       );
       return;
     }
+
 
     const titleMappings = {
       Duke: ["d", "duke", "duk", "D"],
@@ -468,37 +484,37 @@ client.on("messageCreate", async (message) => {
 function runCheckState() {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
   if (!deviceId) {
-      console.error("No device ID found in environment variables.");
-      return;
+    console.error("No device ID found in environment variables.");
+    return;
   }
 
   try {
-      exec(
-          `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
-          (error) => {
-              if (error) {
-                  console.error(
-                      `Error taking screenshot on ${deviceId}: ${error.message}`
-                  );
-                  return;
-              }
-              exec(
-                  `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
-                  (error, stdout, stderr) => {
-                      if (error) {
-                          console.error(`Error on ${deviceId}: ${error.message}`);
-                          return;
-                      }
-                      if (stderr) {
-                          console.error(`Stderr on ${deviceId}: ${stderr}`);
-                          return;
-                      }
-                  }
-              );
+    exec(
+      `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
+      (error) => {
+        if (error) {
+          console.error(
+            `Error taking screenshot on ${deviceId}: ${error.message}`
+          );
+          return;
+        }
+        exec(
+          `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
+          (error, stdout, stderr) => {
+            if (error) {
+              console.error(`Error on ${deviceId}: ${error.message}`);
+              return;
+            }
+            if (stderr) {
+              console.error(`Stderr on ${deviceId}: ${stderr}`);
+              return;
+            }
           }
-      );
+        );
+      }
+    );
   } catch (error) {
-      console.error(`Unexpected error while executing ADB command: ${error.message}`);
+    console.error(`Unexpected error while executing ADB command: ${error.message}`);
   }
 }
 
@@ -714,8 +730,7 @@ function execAsync(command, retries = 3) {
         if (error) {
           if (error.code === "ECONNRESET" && retryCount > 0) {
             console.warn(
-              `ECONNRESET error occurred. Retrying... (${
-                retries - retryCount + 1
+              `ECONNRESET error occurred. Retrying... (${retries - retryCount + 1
               }/${retries})`
             );
             return attempt(retryCount - 1);
@@ -926,19 +941,58 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
     return { success: false };
   }
 
+  // Randomize the coordinates for each tap according to the specified ranges
+  let lostKingdom = false;
+
+  // 1. Magnifying tap (X: 415-648, Y: 20-45)
+  const randomX1 = Math.floor(Math.random() * (648 - 415 + 1)) + 415; // Random X1 between 415 and 648
+  const randomY1 = Math.floor(Math.random() * (45 - 20 + 1)) + 20;    // Random Y1 between 20 and 45
+
+  // 2. Kingdom tap (X: 607-760, Y: 183-226)
+  let lostKingdomX, lostKingdomY;
+  if (lostKingdom) {
+    lostKingdomX = Math.floor(Math.random() * (760 - 607 + 1)) + 607; // Random X between 607 and 760
+    lostKingdomY = Math.floor(Math.random() * (226 - 183 + 1)) + 183; // Random Y between 183 and 226
+  }
+
+  // 3. X tap (X: 877-999, Y: 183-226)
+  const randomX3 = Math.floor(Math.random() * (999 - 877 + 1)) + 877; // Random X3 between 877 and 999
+  const randomY3 = Math.floor(Math.random() * (226 - 183 + 1)) + 183; // Random Y3 between 183 and 226
+
+  // 4. Y tap (X: 1115-1255, Y: 183-226)
+  const randomX4 = Math.floor(Math.random() * (1255 - 1115 + 1)) + 1115; // Random X4 between 1115 and 1255
+  const randomY4 = randomY3; // Use the same Y as randomY3 (183-226)
+
+  // 5. Magnifying glass tap (X: 1295-1350, Y: 183-226)
+  const randomX5 = Math.floor(Math.random() * (1350 - 1295 + 1)) + 1295; // Random X5 between 1295 and 1350
+  const randomY5 = randomY3; // Use the same Y as randomY3 (183-226)
+
+  // Initialize commands array
   const initialCommands = [
-    `adb -s ${deviceId} shell input tap 660 28`,
-    `adb -s ${deviceId} shell input tap 962 215`,
-    `adb -s ${deviceId} shell input text "${x}"`,
-    `adb -s ${deviceId} shell input tap 1169 215`,
-    `adb -s ${deviceId} shell input tap 1169 215`,
-    `adb -s ${deviceId} shell input text "${y}"`,
-    `adb -s ${deviceId} shell input tap 1331 212`,
-    `adb -s ${deviceId} shell input tap 1331 212`,
+    `adb -s ${deviceId} shell input tap ${randomX1} ${randomY1}`,  // Magnifying tap
   ];
+  // Check if lostKingdom is true and add tap and paste commands
+  if (lostKingdom) {
+    initialCommands.push(
+      `adb -s ${deviceId} shell input tap ${lostKingdomX} ${lostKingdomY}`,  // Tap for Lost Kingdom
+      `adb -s ${deviceId} shell input text "${process.env.LOSTKINGDOM}"`     // Paste LOSTKINGDOM variable
+    );
+  }
+
+  // Continue with the rest of the commands
+  initialCommands.push(
+    `adb -s ${deviceId} shell input tap ${randomX3} ${randomY3}`, // X tap
+    `adb -s ${deviceId} shell input text "${x}"`,                // X paste
+    `adb -s ${deviceId} shell input tap ${randomX4} ${randomY4}`, // Y tap to remove keyboard
+    `adb -s ${deviceId} shell input tap ${randomX4} ${randomY4}`, // Y tap
+    `adb -s ${deviceId} shell input text "${y}"`,                // Y paste
+    `adb -s ${deviceId} shell input tap ${randomX5} ${randomY5}`, // Magnifying tap to remove keyboard
+    `adb -s ${deviceId} shell input tap ${randomX5} ${randomY5}`  // Magnifying tap to do search
+  );
 
   async function executeCommandWithDelay(commands, index) {
     if (index >= commands.length) return Promise.resolve();
+
     return new Promise((resolve, reject) => {
       exec(commands[index], (error, stdout) => {
         if (error) {
@@ -947,14 +1001,18 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
           return;
         }
 
+        // Generate a random delay between 500ms to 1000ms
+        const randomDelay = Math.floor(Math.random() * (1000 - 500 + 1)) + 500;
+
         setTimeout(() => {
           executeCommandWithDelay(commands, index + 1)
             .then(resolve)
             .catch(reject);
-        }, 500);
+        }, randomDelay); // Use the random delay
       });
     });
   }
+
 
   try {
     await executeCommandWithDelay(initialCommands, 0);
