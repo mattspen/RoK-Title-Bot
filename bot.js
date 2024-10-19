@@ -484,38 +484,54 @@ client.on("messageCreate", async (message) => {
 function runCheckState() {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
   if (!deviceId) {
-    console.error("No device ID found in environment variables.");
+    console.error("No device ID found.");
     return;
   }
 
-  try {
-    exec(
-      `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
-      (error) => {
+  const screenshotPath = `./temp/current_state_${deviceId}.png`;
+
+  exec(`adb -s ${deviceId} exec-out screencap -p > ${screenshotPath}`, (error) => {
+    if (error) {
+      console.error(`Error taking screenshot: ${error.message}`);
+      return;
+    }
+
+    exec(`python check_home.py ${deviceId} ${screenshotPath}`, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error with check_home.py: ${error.message}`);
+        return;
+      }
+      if (stderr) {
+        console.error(`Stderr from check_home.py: ${stderr}`);
+        return;
+      }
+      console.log(stdout);
+
+      exec(`python check_state.py ${screenshotPath} ${deviceId}`, (error, stdout, stderr) => {
         if (error) {
-          console.error(
-            `Error taking screenshot on ${deviceId}: ${error.message}`
-          );
+          console.error(`Error with check_state.py: ${error.message}`);
           return;
         }
-        exec(
-          `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
-          (error, stdout, stderr) => {
-            if (error) {
-              console.error(`Error on ${deviceId}: ${error.message}`);
-              return;
-            }
-            if (stderr) {
-              console.error(`Stderr on ${deviceId}: ${stderr}`);
-              return;
-            }
+        if (stderr) {
+          console.error(`Stderr from check_state.py: ${stderr}`);
+          return;
+        }
+        console.log(stdout);
+
+        exec(`python connection_check.py ${screenshotPath} ${deviceId}`, (error, stdout, stderr) => {
+          if (error) {
+            console.error(`Error with connection_check.py: ${error.message}`);
+            return;
           }
-        );
-      }
-    );
-  } catch (error) {
-    console.error(`Unexpected error while executing ADB command: ${error.message}`);
-  }
+          if (stderr) {
+            console.error(`Stderr from connection_check.py: ${stderr}`);
+            return;
+          }
+          console.log(stdout);
+        });
+      });
+    });
+  });
 }
 
 setInterval(() => {
@@ -836,40 +852,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
         await execAsync(screenshotCommand);
 
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        const botStuckCheckResult = await new Promise((resolve) => {
-          exec(
-            `python check_bot_stuck.py ${screenshotFilename}`,
-            (error, stdout, stderr) => {
-              if (error) {
-                console.error(
-                  `Error running check_bot_stuck.py: ${error.message}`
-                );
-                resolve({
-                  success: false,
-                  error: "Bot stuck check script execution error",
-                });
-                return;
-              }
-              if (stderr) {
-                console.error(`Stderr from check_bot_stuck.py: ${stderr}`);
-                resolve({
-                  success: false,
-                  error: "Bot stuck check script stderr",
-                });
-                return;
-              }
-              const result = JSON.parse(stdout.trim());
-              console.log("Bot stuck check result:", result.status);
-              resolve(result);
-            }
-          );
-        });
-
-        if (botStuckCheckResult.success) {
-          console.log("Bot is stuck.");
-          await new Promise((resolve) => setTimeout(resolve, 3000));
-          return await runAdbCommand(userId, x, y, title, kingdom);
-        }
+        
         const titleCheckResult = await new Promise((resolve) => {
           exec(
             `python ./check_title.py ${screenshotFilename} ${deviceId}`,
