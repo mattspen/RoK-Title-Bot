@@ -41,7 +41,7 @@ def check_state(screenshot_path, device_id):
 
         # Update the best match if the current match is better
         if max_val > best_match["confidence"]:
-            best_match["match"] = max_val >= 0.85  # Adjust confidence threshold if necessary
+            best_match["match"] = max_val >= 0.8  # Adjust confidence threshold if necessary
             best_match["location"] = max_loc if best_match["match"] else None
             best_match["confidence"] = max_val
 
@@ -100,8 +100,14 @@ def highlight_area(img, location, template_shape):
     top_left = location
     bottom_right = (top_left[0] + template_shape[1], top_left[1] + template_shape[0])
 
-    # Draw a rectangle around the matched region
-    cv2.rectangle(img, top_left, bottom_right, (0, 255, 0), 2)
+    # Draw a rectangle around the matched region to highlight it
+    cv2.rectangle(img, top_left, bottom_right, (0, 255, 0), 2)  # Green rectangle
+
+    # Draw crosshairs at the center for better visibility
+    center_x = top_left[0] + (template_shape[1] // 2)
+    center_y = top_left[1] + (template_shape[0] // 2)
+    cv2.line(img, (center_x - 10, center_y), (center_x + 10, center_y), (0, 0, 255), 2)  # Red horizontal line
+    cv2.line(img, (center_x, center_y - 10), (center_x, center_y + 10), (0, 0, 255), 2)  # Red vertical line
 
     # Save the modified image with the highlighted area
     highlighted_image_path = './temp/highlighted_matched_area.png'

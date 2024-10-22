@@ -938,17 +938,18 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
     lostKingdomY = Math.floor(Math.random() * (226 - 183 + 1)) + 183; // Random Y between 183 and 226
   }
 
-  // 3. X tap (X: 877-999, Y: 183-226)
-  const randomX3 = Math.floor(Math.random() * (999 - 877 + 1)) + 877; // Random X3 between 877 and 999
-  const randomY3 = Math.floor(Math.random() * (226 - 183 + 1)) + 183; // Random Y3 between 183 and 226
+  // 3. X tap (X: 877-999, Y: 195-240)
+const randomX3 = Math.floor(Math.random() * (999 - 877 + 1)) + 877; // Random X3 between 877 and 999
+const randomY3 = Math.floor(Math.random() * (240 - 195 + 1)) + 195; // Random Y3 between 195 and 240
 
-  // 4. Y tap (X: 1115-1255, Y: 183-226)
-  const randomX4 = Math.floor(Math.random() * (1255 - 1115 + 1)) + 1115; // Random X4 between 1115 and 1255
-  const randomY4 = randomY3; // Use the same Y as randomY3 (183-226)
+// 4. Y tap (X: 1115-1255, Y: 195-240)
+const randomX4 = Math.floor(Math.random() * (1255 - 1115 + 1)) + 1115; // Random X4 between 1115 and 1255
+const randomY4 = randomY3; // Use the same Y as randomY3 (195-240)
 
-  // 5. Magnifying glass tap (X: 1295-1350, Y: 183-226)
-  const randomX5 = Math.floor(Math.random() * (1350 - 1295 + 1)) + 1295; // Random X5 between 1295 and 1350
-  const randomY5 = randomY3; // Use the same Y as randomY3 (183-226)
+// 5. Magnifying glass tap (X: 1295-1350, Y: 195-240)
+const randomX5 = Math.floor(Math.random() * (1350 - 1295 + 1)) + 1295; // Random X5 between 1295 and 1350
+const randomY5 = randomY3; // Use the same Y as randomY3 (195-240)
+
 
   // Initialize commands array
   const initialCommands = [
