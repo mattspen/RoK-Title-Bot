@@ -59,20 +59,18 @@ client.on("messageCreate", async (message) => {
   const args = content.split(/\s+/);
 
   try {
-    if (
-      args[0].toLowerCase() === "register" ||
-      args[0].toLowerCase() === "/register"
-    ) {
-      if (args.length < 4) {
+    if (args[0].toLowerCase() === "register") {
+      if (args.length < 3) { // Adjusted to account for no username
         await message.reply(
-          "Please provide a username and coordinates in the format: `register <username> <x> <y>`."
+          "Please provide coordinates in the format: `register <x> <y>`."
         );
         return;
       }
 
-      const username = args[1];
-      const x = parseInt(args[2], 10);
-      const y = parseInt(args[3], 10);
+      // Shift arguments if username is provided (assume coordinates are always last)
+      const isUsernamePresent = isNaN(args[1]); // Check if the second argument is a username
+      const x = parseInt(isUsernamePresent ? args[2] : args[1], 10);
+      const y = parseInt(isUsernamePresent ? args[3] : args[2], 10);
 
       if (isNaN(x) || isNaN(y)) {
         await message.reply(
@@ -87,19 +85,18 @@ client.on("messageCreate", async (message) => {
       const user = await User.findOne({ userId });
 
       if (user) {
-        user.username = username;
         user.kingdom = kingdom;
         user.x = x;
         user.y = y;
         await user.save();
         await message.reply(
-          `Your details have been updated: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+          `Your details have been updated: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       } else {
-        const newUser = new User({ userId, username, kingdom, x, y });
+        const newUser = new User({ userId, kingdom, x, y });
         await newUser.save();
         await message.reply(
-          `You have been registered: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+          `You have been registered: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       }
       return;
@@ -116,17 +113,17 @@ client.on("messageCreate", async (message) => {
         return;
       }
 
-      if (args.length !== 5) {
+      if (args.length < 4) {
         await message.reply(
-          "Invalid command format. Please use: `registeruser <discordid> <username> <x> <y>`."
+          "Invalid command format. Please use: `registeruser <discordid> <x> <y>`."
         );
         return;
       }
 
       const targetUserId = args[1];
-      const username = args[2];
-      const x = parseInt(args[3], 10);
-      const y = parseInt(args[4], 10);
+      const isUsernamePresent = isNaN(args[2]); // Check if the third argument is a username
+      const x = parseInt(isUsernamePresent ? args[3] : args[2], 10);
+      const y = parseInt(isUsernamePresent ? args[4] : args[3], 10);
       const kingdom = parseInt(process.env.KINGDOM, 10);
 
       if (isNaN(x) || isNaN(y)) {
@@ -139,25 +136,23 @@ client.on("messageCreate", async (message) => {
       const user = await User.findOne({ userId: targetUserId });
 
       if (user) {
-        user.username = username;
         user.kingdom = kingdom;
         user.x = x;
         user.y = y;
         await user.save();
         await message.reply(
-          `User with Discord ID ${targetUserId} has been updated: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+          `User with Discord ID ${targetUserId} has been updated: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       } else {
         const newUser = new User({
           userId: targetUserId,
-          username,
           kingdom,
           x,
           y,
         });
         await newUser.save();
         await message.reply(
-          `User with Discord ID ${targetUserId} has been registered: Username: "${username}", Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+          `User with Discord ID ${targetUserId} has been registered: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       }
       return;
@@ -441,11 +436,47 @@ client.on("messageCreate", async (message) => {
     client.lastTitleRequestTime[userId] = now;
     lastUserRequest[userId] = title;
 
-    const user = await User.findOne({ userId });
+    // Parse coordinates if provided (after the title)
+    let x = null;
+    let y = null;
+    if (args.length >= 3) {
+      x = parseInt(args[1], 10);
+      y = parseInt(args[2], 10);
+
+      if (isNaN(x) || isNaN(y)) {
+        await message.reply("Invalid coordinates. Please enter valid numbers for x and y.");
+        return;
+      }
+    }
+
+    let user = await User.findOne({ userId });
+
     if (!user) {
-      await message.reply("User not found. Please register first.");
-      lastUserRequest[userId] = null;
-      return;
+      // If the user is not found, register them automatically
+      const kingdom = parseInt(process.env.KINGDOM, 10);
+
+      if (x === null || y === null) {
+        await message.reply("Coordinates are required for first-time registration. e.g: duke 123 456");
+        lastUserRequest[userId] = null;
+        return;
+      }
+
+      user = new User({
+        userId,
+        kingdom,
+        x,
+        y,
+      });
+
+      await user.save();
+      await message.reply(`You have been registered with coordinates (${x}, ${y}) in Kingdom ${kingdom}.`);
+    } else {
+      // If the user exists and coordinates are provided, update their coordinates
+      if (x !== null && y !== null) {
+        user.x = x;
+        user.y = y;
+        await user.save();
+      }
     }
 
     const lockedTitleDoc = await LockedTitle.findOne({
@@ -465,7 +496,7 @@ client.on("messageCreate", async (message) => {
     const titleRequestLog = new TitleRequestLog({
       userId,
       title,
-      username: user.username,
+      username: user.username || 'nil', // Username is optional
       kingdom: user.kingdom,
       status: "pending",
     });
@@ -473,6 +504,7 @@ client.on("messageCreate", async (message) => {
     await titleRequestLog.save();
 
     await handleTitleRequest(userId, title, message);
+
   } catch (error) {
     console.error("Error processing message:", error);
     await message.reply(
@@ -566,7 +598,6 @@ async function processGlobalAdbQueue() {
       throw new Error("User not found");
     }
 
-    const username = user.username;
     const kingdom = user.kingdom;
 
     console.log(`Processing ADB command for title: ${title}, user: ${userId}`);
@@ -587,7 +618,7 @@ async function processGlobalAdbQueue() {
 
     await TitleRequestLog.create({
       userId,
-      username,
+      username: "nil",
       title,
       kingdom,
       status: "successful",
@@ -852,7 +883,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
         await execAsync(screenshotCommand);
 
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        
+
         const titleCheckResult = await new Promise((resolve) => {
           exec(
             `python ./check_title.py ${screenshotFilename} ${deviceId}`,
@@ -939,16 +970,16 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
   }
 
   // 3. X tap (X: 877-999, Y: 195-240)
-const randomX3 = Math.floor(Math.random() * (999 - 877 + 1)) + 877; // Random X3 between 877 and 999
-const randomY3 = Math.floor(Math.random() * (240 - 195 + 1)) + 195; // Random Y3 between 195 and 240
+  const randomX3 = Math.floor(Math.random() * (999 - 877 + 1)) + 877; // Random X3 between 877 and 999
+  const randomY3 = Math.floor(Math.random() * (240 - 195 + 1)) + 195; // Random Y3 between 195 and 240
 
-// 4. Y tap (X: 1115-1255, Y: 195-240)
-const randomX4 = Math.floor(Math.random() * (1255 - 1115 + 1)) + 1115; // Random X4 between 1115 and 1255
-const randomY4 = randomY3; // Use the same Y as randomY3 (195-240)
+  // 4. Y tap (X: 1115-1255, Y: 195-240)
+  const randomX4 = Math.floor(Math.random() * (1255 - 1115 + 1)) + 1115; // Random X4 between 1115 and 1255
+  const randomY4 = randomY3; // Use the same Y as randomY3 (195-240)
 
-// 5. Magnifying glass tap (X: 1295-1350, Y: 195-240)
-const randomX5 = Math.floor(Math.random() * (1350 - 1295 + 1)) + 1295; // Random X5 between 1295 and 1350
-const randomY5 = randomY3; // Use the same Y as randomY3 (195-240)
+  // 5. Magnifying glass tap (X: 1295-1350, Y: 195-240)
+  const randomX5 = Math.floor(Math.random() * (1350 - 1295 + 1)) + 1295; // Random X5 between 1295 and 1350
+  const randomY5 = randomY3; // Use the same Y as randomY3 (195-240)
 
 
   // Initialize commands array
@@ -1024,7 +1055,6 @@ async function handleTitleRequest(userId, title, interaction) {
 
     if (
       user &&
-      user.username &&
       user.kingdom &&
       user.x != null &&
       user.y != null
@@ -1094,7 +1124,7 @@ async function handleTitleRequest(userId, title, interaction) {
     } else {
       if (!interaction.replied) {
         await interaction.reply(
-          "You haven't registered your username and coordinates. Please type the following: `register [your_username] [x] [y]`."
+          "You haven't registered your coordinates. Please type the following: `register [x] [y]`."
         );
       }
     }
