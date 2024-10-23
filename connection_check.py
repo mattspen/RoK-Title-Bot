@@ -1,26 +1,26 @@
 import os
-import cv2
 import sys
 import subprocess
-import json
 import random
 import pytesseract
+import difflib
+import cv2
 
-def preprocess_image(img_gray):
-    # Resize the image for better accuracy
-    img_resized = cv2.resize(img_gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+# Define the cropping coordinates (using the values you provided)
+CROP_X1, CROP_Y1 = 510, 262  # Top left
+CROP_X2, CROP_Y2 = 1412, 814  # Bottom right
 
-    # Apply GaussianBlur to reduce noise
-    img_blur = cv2.GaussianBlur(img_resized, (5, 5), 0)
+def clean_ocr_output(text):
+    cleaned_text = ''.join(c for c in text if c.isalnum() or c.isspace() or c in ".,-")
+    return cleaned_text
 
-    # Apply adaptive thresholding to binarize the image
-    img_thresh = cv2.adaptiveThreshold(img_blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
-
-    # Optionally apply dilation/erosion to emphasize text
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    img_dilated = cv2.dilate(img_thresh, kernel, iterations=1)
-
-    return img_dilated
+def is_text_similar(extracted_text, target_texts, threshold=0.4):  # Reduced threshold to 0.4
+    for target_text in target_texts:
+        similarity = difflib.SequenceMatcher(None, extracted_text.lower(), target_text.lower()).ratio()
+        print(f"Checking similarity with '{target_text}': {similarity}")
+        if similarity >= threshold:
+            return True
+    return False
 
 def check_state(screenshot_path, device_id):
     print(f"Checking state of {device_id}...")
@@ -30,34 +30,42 @@ def check_state(screenshot_path, device_id):
     if img_rgb is None:
         raise FileNotFoundError(f"{screenshot_path} not found or could not be opened")
 
-    # Convert screenshot to grayscale for better OCR performance
-    img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
+    # Crop the image using the provided coordinates
+    img_cropped = img_rgb[CROP_Y1:CROP_Y2, CROP_X1:CROP_X2]
 
-    # Preprocess the image to improve OCR accuracy
-    img_processed = preprocess_image(img_gray)
+    # Convert cropped image to grayscale
+    img_gray = cv2.cvtColor(img_cropped, cv2.COLOR_BGR2GRAY)
 
-    # Use Tesseract to extract text from the processed image
-    custom_config = r'--oem 3 --psm 6'
-    extracted_text = pytesseract.image_to_string(img_processed, config=custom_config)
+    # Use Tesseract to extract text from the cropped image
+    custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,- '
+    extracted_text = pytesseract.image_to_string(img_gray, config=custom_config)
 
-    # Check if "NETWORK DISCONNECTED" is present in the extracted text
-    if "NETWORK DISCONNECTED" in extracted_text:
+    cleaned_text = clean_ocr_output(extracted_text)
+    print(f"Cleaned OCR output: {cleaned_text}")
+
+    # List of target phrases to check against
+    target_texts = [
+        "networkunstable",
+        "connectionlost",
+        "pleaseclickconfirmtoreconnect",
+        "confirm"
+    ]
+
+    if is_text_similar(cleaned_text, target_texts):
         tap_random_region(device_id)
         return {
             "text_found": True,
         }
     else:
-        print("Text not found.")
+        print("Text not found or not similar enough.")
         return {
             "text_found": False,
         }
 
 def tap_random_region(device_id):
-    # Generate random coordinates within the specified ranges
     x = random.randint(1156, 2260)
     y = random.randint(1332, 1479)
     
-    # ADB command to tap at the generated coordinates
     adb_command = f"adb -s {device_id} shell input tap {x} {y}"
     print(f"Executing ADB command: {adb_command}")
     subprocess.run(adb_command, shell=True)
