@@ -63,10 +63,8 @@ def check_state(screenshot_path, device_id):
         }
 
 def tap_random_region(device_id):
-    x = random.randint(1156, 2260)
-    y = random.randint(1332, 1479)
-    
-    adb_command = f"adb -s {device_id} shell input tap {x} {y}"
+   
+    adb_command = f"adb -s {device_id} shell input tap 954 711"
     print(f"Executing ADB command: {adb_command}")
     subprocess.run(adb_command, shell=True)
 
