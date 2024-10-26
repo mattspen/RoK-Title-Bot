@@ -4,10 +4,10 @@ const TitleRequestLogSchema = new mongoose.Schema({
   userId: { type: String, required: true },
   title: { type: String, required: true },
   kingdom: { type: Number, required: true },
-  username: { type: String, required: true },
+  username: { type: String, required: false },
   status: {
     type: String,
-    enum: ["successful", "unsuccessful", "pending"], // Ensure "pending" is included
+    enum: ["successful", "unsuccessful", "pending"],
     required: true,
   },
 });

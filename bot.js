@@ -60,7 +60,8 @@ client.on("messageCreate", async (message) => {
 
   try {
     if (args[0].toLowerCase() === "register") {
-      if (args.length < 3) { // Adjusted to account for no username
+      if (args.length < 3) {
+        // Adjusted to account for no username
         await message.reply(
           "Please provide coordinates in the format: `register <x> <y>`."
         );
@@ -169,15 +170,27 @@ client.on("messageCreate", async (message) => {
         return;
       }
 
+      // Find the requesting user's kingdom
+      const requestingUser = await User.findOne({ userId });
+      if (!requestingUser) {
+        await message.reply("User data not found.");
+        return;
+      }
+
+      const { kingdom } = requestingUser;
+
+      // Filter logs by user's kingdom
       const successCount = await TitleRequestLog.countDocuments({
         status: "successful",
+        kingdom: kingdom,
       });
       const failureCount = await TitleRequestLog.countDocuments({
         status: "unsuccessful",
+        kingdom: kingdom,
       });
 
       await message.reply(
-        `Title Request Logs:\nSuccesses: ${successCount}\nFailures: ${failureCount}`
+        `Title Request Logs for Kingdom ${kingdom}:\nSuccesses: ${successCount}\nFailures: ${failureCount}`
       );
       return;
     }
@@ -373,14 +386,20 @@ client.on("messageCreate", async (message) => {
                   `adb -s ${deviceId} shell pidof com.lilithgame.roc.gp`,
                   (error, stdout) => {
                     if (error || !stdout.trim()) {
-                      console.error(`App is not running: ${error ? error.message : 'No process found.'}`);
+                      console.error(
+                        `App is not running: ${
+                          error ? error.message : "No process found."
+                        }`
+                      );
                       return message.reply(
                         "Failed to confirm app is running. Please check manually."
                       );
                     }
 
                     // App is confirmed running
-                    message.reply("App has been reset and is running successfully!");
+                    message.reply(
+                      "App has been reset and is running successfully!"
+                    );
                   }
                 );
               }, 25000); // Wait for 25 seconds before checking the app status
@@ -390,7 +409,6 @@ client.on("messageCreate", async (message) => {
       );
       return;
     }
-
 
     const titleMappings = {
       Duke: ["d", "duke", "duk", "D"],
@@ -444,7 +462,9 @@ client.on("messageCreate", async (message) => {
       y = parseInt(args[2], 10);
 
       if (isNaN(x) || isNaN(y)) {
-        await message.reply("Invalid coordinates. Please enter valid numbers for x and y.");
+        await message.reply(
+          "Invalid coordinates. Please enter valid numbers for x and y."
+        );
         return;
       }
     }
@@ -456,7 +476,9 @@ client.on("messageCreate", async (message) => {
       const kingdom = parseInt(process.env.KINGDOM, 10);
 
       if (x === null || y === null) {
-        await message.reply("Coordinates are required for first-time registration. e.g: duke 123 456");
+        await message.reply(
+          "Coordinates are required for first-time registration. e.g: duke 123 456"
+        );
         lastUserRequest[userId] = null;
         return;
       }
@@ -469,7 +491,9 @@ client.on("messageCreate", async (message) => {
       });
 
       await user.save();
-      await message.reply(`You have been registered with coordinates (${x}, ${y}) in Kingdom ${kingdom}.`);
+      await message.reply(
+        `You have been registered with coordinates (${x}, ${y}) in Kingdom ${kingdom}.`
+      );
     } else {
       // If the user exists and coordinates are provided, update their coordinates
       if (x !== null && y !== null) {
@@ -496,7 +520,7 @@ client.on("messageCreate", async (message) => {
     const titleRequestLog = new TitleRequestLog({
       userId,
       title,
-      username: user.username || 'nil', // Username is optional
+      username: user.username || "nil", // Username is optional
       kingdom: user.kingdom,
       status: "pending",
     });
@@ -504,7 +528,6 @@ client.on("messageCreate", async (message) => {
     await titleRequestLog.save();
 
     await handleTitleRequest(userId, title, message);
-
   } catch (error) {
     console.error("Error processing message:", error);
     await message.reply(
@@ -522,48 +545,62 @@ function runCheckState() {
 
   const screenshotPath = `./temp/current_state_${deviceId}.png`;
 
-  exec(`adb -s ${deviceId} exec-out screencap -p > ${screenshotPath}`, (error) => {
-    if (error) {
-      console.error(`Error taking screenshot: ${error.message}`);
-      return;
-    }
-
-    exec(`python check_home.py ${deviceId} ${screenshotPath}`, (error, stdout, stderr) => {
+  exec(
+    `adb -s ${deviceId} exec-out screencap -p > ${screenshotPath}`,
+    (error) => {
       if (error) {
-        console.error(`Error with check_home.py: ${error.message}`);
+        console.error(`Error taking screenshot: ${error.message}`);
         return;
       }
-      if (stderr) {
-        console.error(`Stderr from check_home.py: ${stderr}`);
-        return;
-      }
-      console.log(stdout);
 
-      exec(`python check_state.py ${screenshotPath} ${deviceId}`, (error, stdout, stderr) => {
-        if (error) {
-          console.error(`Error with check_state.py: ${error.message}`);
-          return;
-        }
-        if (stderr) {
-          console.error(`Stderr from check_state.py: ${stderr}`);
-          return;
-        }
-        console.log(stdout);
-
-        exec(`python connection_check.py ${screenshotPath} ${deviceId}`, (error, stdout, stderr) => {
+      exec(
+        `python check_home.py ${deviceId} ${screenshotPath}`,
+        (error, stdout, stderr) => {
           if (error) {
-            console.error(`Error with connection_check.py: ${error.message}`);
+            console.error(`Error with check_home.py: ${error.message}`);
             return;
           }
           if (stderr) {
-            console.error(`Stderr from connection_check.py: ${stderr}`);
+            console.error(`Stderr from check_home.py: ${stderr}`);
             return;
           }
           console.log(stdout);
-        });
-      });
-    });
-  });
+
+          exec(
+            `python check_state.py ${screenshotPath} ${deviceId}`,
+            (error, stdout, stderr) => {
+              if (error) {
+                console.error(`Error with check_state.py: ${error.message}`);
+                return;
+              }
+              if (stderr) {
+                console.error(`Stderr from check_state.py: ${stderr}`);
+                return;
+              }
+              console.log(stdout);
+
+              exec(
+                `python connection_check.py ${screenshotPath} ${deviceId}`,
+                (error, stdout, stderr) => {
+                  if (error) {
+                    console.error(
+                      `Error with connection_check.py: ${error.message}`
+                    );
+                    return;
+                  }
+                  if (stderr) {
+                    console.error(`Stderr from connection_check.py: ${stderr}`);
+                    return;
+                  }
+                  console.log(stdout);
+                }
+              );
+            }
+          );
+        }
+      );
+    }
+  );
 }
 
 setInterval(() => {
@@ -638,11 +675,11 @@ async function processGlobalAdbQueue() {
     console.log(`Custom or default remaining time: ${remainingTime} seconds`);
 
     const deviceId = process.env.EMULATOR_DEVICE_ID;
-    const screenshotPath = `./temp/screenshot_${title.toLowerCase()}_${deviceId}.png`;
+    // const screenshotPath = `./temp/screenshot_${title.toLowerCase()}_${deviceId}.png`;
 
     const notificationMessage = await interaction.channel.send({
       content: `<@${userId}>, You're up for the title "${title}"! React with ✅ when done, you have ${remainingTime} seconds.`,
-      files: [screenshotPath],
+      // files: [screenshotPath],
     });
 
     await notificationMessage.react("✅");
@@ -777,7 +814,8 @@ function execAsync(command, retries = 3) {
         if (error) {
           if (error.code === "ECONNRESET" && retryCount > 0) {
             console.warn(
-              `ECONNRESET error occurred. Retrying... (${retries - retryCount + 1
+              `ECONNRESET error occurred. Retrying... (${
+                retries - retryCount + 1
               }/${retries})`
             );
             return attempt(retryCount - 1);
@@ -876,7 +914,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
       try {
         await execAsync(cityTapCommand);
 
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 300));
 
         const screenshotFilename = `./temp/screenshot_${attempt}_${deviceId}.png`;
         const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
@@ -960,7 +998,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
 
   // 1. Magnifying tap (X: 415-648, Y: 20-45)
   const randomX1 = Math.floor(Math.random() * (648 - 415 + 1)) + 415; // Random X1 between 415 and 648
-  const randomY1 = Math.floor(Math.random() * (45 - 20 + 1)) + 20;    // Random Y1 between 20 and 45
+  const randomY1 = Math.floor(Math.random() * (45 - 20 + 1)) + 20; // Random Y1 between 20 and 45
 
   // 2. Kingdom tap (X: 607-760, Y: 183-226)
   let lostKingdomX, lostKingdomY;
@@ -981,28 +1019,27 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
   const randomX5 = Math.floor(Math.random() * (1350 - 1295 + 1)) + 1295; // Random X5 between 1295 and 1350
   const randomY5 = randomY3; // Use the same Y as randomY3 (195-240)
 
-
   // Initialize commands array
   const initialCommands = [
-    `adb -s ${deviceId} shell input tap ${randomX1} ${randomY1}`,  // Magnifying tap
+    `adb -s ${deviceId} shell input tap ${randomX1} ${randomY1}`, // Magnifying tap
   ];
   // Check if lostKingdom is true and add tap and paste commands
   if (lostKingdom) {
     initialCommands.push(
-      `adb -s ${deviceId} shell input tap ${lostKingdomX} ${lostKingdomY}`,  // Tap for Lost Kingdom
-      `adb -s ${deviceId} shell input text "${process.env.LOSTKINGDOM}"`     // Paste LOSTKINGDOM variable
+      `adb -s ${deviceId} shell input tap ${lostKingdomX} ${lostKingdomY}`, // Tap for Lost Kingdom
+      `adb -s ${deviceId} shell input text "${process.env.LOSTKINGDOM}"` // Paste LOSTKINGDOM variable
     );
   }
 
   // Continue with the rest of the commands
   initialCommands.push(
     `adb -s ${deviceId} shell input tap ${randomX3} ${randomY3}`, // X tap
-    `adb -s ${deviceId} shell input text "${x}"`,                // X paste
+    `adb -s ${deviceId} shell input text "${x}"`, // X paste
     `adb -s ${deviceId} shell input tap ${randomX4} ${randomY4}`, // Y tap to remove keyboard
     `adb -s ${deviceId} shell input tap ${randomX4} ${randomY4}`, // Y tap
-    `adb -s ${deviceId} shell input text "${y}"`,                // Y paste
+    `adb -s ${deviceId} shell input text "${y}"`, // Y paste
     `adb -s ${deviceId} shell input tap ${randomX5} ${randomY5}`, // Magnifying tap to remove keyboard
-    `adb -s ${deviceId} shell input tap ${randomX5} ${randomY5}`  // Magnifying tap to do search
+    `adb -s ${deviceId} shell input tap ${randomX5} ${randomY5}` // Magnifying tap to do search
   );
 
   async function executeCommandWithDelay(commands, index) {
@@ -1016,18 +1053,16 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
           return;
         }
 
-        // Generate a random delay between 500ms to 1000ms
-        const randomDelay = Math.floor(Math.random() * (1000 - 500 + 1)) + 500;
+        const randomDelay = Math.floor(Math.random() * (500 - 300 + 1)) + 300;
 
         setTimeout(() => {
           executeCommandWithDelay(commands, index + 1)
             .then(resolve)
             .catch(reject);
-        }, randomDelay); // Use the random delay
+        }, randomDelay);
       });
     });
   }
-
 
   try {
     await executeCommandWithDelay(initialCommands, 0);
@@ -1053,12 +1088,7 @@ async function handleTitleRequest(userId, title, interaction) {
   try {
     const user = await User.findOne({ userId });
 
-    if (
-      user &&
-      user.kingdom &&
-      user.x != null &&
-      user.y != null
-    ) {
+    if (user && user.kingdom && user.x != null && user.y != null) {
       const userKingdom = user.kingdom;
 
       const lockedTitle = await LockedTitle.findOne({
