@@ -564,7 +564,6 @@ function runCheckState() {
             console.error(`Stderr from check_home.py: ${stderr}`);
             return;
           }
-          console.log(stdout);
 
           exec(
             `python check_state.py ${screenshotPath} ${deviceId}`,
@@ -577,7 +576,6 @@ function runCheckState() {
                 console.error(`Stderr from check_state.py: ${stderr}`);
                 return;
               }
-              console.log(stdout);
 
               exec(
                 `python connection_check.py ${screenshotPath} ${deviceId}`,
@@ -592,7 +590,6 @@ function runCheckState() {
                     console.error(`Stderr from connection_check.py: ${stderr}`);
                     return;
                   }
-                  console.log(stdout);
                 }
               );
             }
@@ -671,8 +668,6 @@ async function processGlobalAdbQueue() {
     if (customDuration) {
       remainingTime = customDuration;
     }
-
-    console.log(`Custom or default remaining time: ${remainingTime} seconds`);
 
     const deviceId = process.env.EMULATOR_DEVICE_ID;
     // const screenshotPath = `./temp/screenshot_${title.toLowerCase()}_${deviceId}.png`;

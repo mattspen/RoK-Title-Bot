@@ -6,7 +6,6 @@ import json
 import random  # Import random for generating offsets
 
 def check_state(screenshot_path, device_id):
-    print(f"Checking state of {device_id}...")
     # Load the screenshot
     img_rgb = cv2.imread(screenshot_path)
     if img_rgb is None:
