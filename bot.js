@@ -1039,7 +1039,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
 
   async function executeCommandWithDelay(commands, index) {
     if (index >= commands.length) return Promise.resolve();
-
+  
     return new Promise((resolve, reject) => {
       exec(commands[index], (error, stdout) => {
         if (error) {
@@ -1047,9 +1047,9 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
           reject(error);
           return;
         }
-
-        const randomDelay = Math.floor(Math.random() * (500 - 300 + 1)) + 300;
-
+  
+        const randomDelay = Math.floor(Math.random() * (300 - 100 + 1)) + 100;
+  
         setTimeout(() => {
           executeCommandWithDelay(commands, index + 1)
             .then(resolve)
@@ -1057,7 +1057,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
         }, randomDelay);
       });
     });
-  }
+  }  
 
   try {
     await executeCommandWithDelay(initialCommands, 0);
@@ -1141,7 +1141,7 @@ async function handleTitleRequest(userId, title, interaction) {
             );
           } else {
             await interaction.reply(
-              `Your title request for ${title} is in queue, but another request is being processed. You will be notified once it is your turn.`
+              `Your title request for ${title} is next in line.`
             );
           }
         }
