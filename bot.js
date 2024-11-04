@@ -63,7 +63,7 @@ client.on("messageCreate", async (message) => {
       if (args.length < 3) {
         // Adjusted to account for no username
         await message.reply(
-          "Please provide coordinates in the format: `register <x> <y>`."
+          "> Please provide coordinates in the format: `register <x> <y>`."
         );
         return;
       }
@@ -75,7 +75,7 @@ client.on("messageCreate", async (message) => {
 
       if (isNaN(x) || isNaN(y)) {
         await message.reply(
-          "Invalid coordinates. Please enter valid numbers for x and y."
+          "> Invalid coordinates. Please enter valid numbers for x and y."
         );
         return;
       }
@@ -91,13 +91,13 @@ client.on("messageCreate", async (message) => {
         user.y = y;
         await user.save();
         await message.reply(
-          `Your details have been updated: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+          `> Your details have been updated: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       } else {
         const newUser = new User({ userId, kingdom, x, y });
         await newUser.save();
         await message.reply(
-          `You have been registered: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+          `> You have been registered: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       }
       return;
@@ -110,13 +110,13 @@ client.on("messageCreate", async (message) => {
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
-        await message.reply("You do not have permission to use this command.");
+        await message.reply("> You do not have permission to use this command.");
         return;
       }
 
       if (args.length < 4) {
         await message.reply(
-          "Invalid command format. Please use: `registeruser <discordid> <x> <y>`."
+          "> Invalid command format. Please use: `registeruser <discordid> <x> <y>`."
         );
         return;
       }
@@ -129,7 +129,7 @@ client.on("messageCreate", async (message) => {
 
       if (isNaN(x) || isNaN(y)) {
         await message.reply(
-          "Invalid coordinates. Please provide valid integers for x and y."
+          "> Invalid coordinates. Please provide valid integers for x and y."
         );
         return;
       }
@@ -142,7 +142,7 @@ client.on("messageCreate", async (message) => {
         user.y = y;
         await user.save();
         await message.reply(
-          `User with Discord ID ${targetUserId} has been updated: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+          `> User with Discord ID ${targetUserId} has been updated: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       } else {
         const newUser = new User({
@@ -153,7 +153,7 @@ client.on("messageCreate", async (message) => {
         });
         await newUser.save();
         await message.reply(
-          `User with Discord ID ${targetUserId} has been registered: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
+          `> User with Discord ID ${targetUserId} has been registered: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
         );
       }
       return;
@@ -166,14 +166,14 @@ client.on("messageCreate", async (message) => {
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
-        await message.reply("You do not have permission to view the logs.");
+        await message.reply("> You do not have permission to view the logs.");
         return;
       }
 
       // Find the requesting user's kingdom
       const requestingUser = await User.findOne({ userId });
       if (!requestingUser) {
-        await message.reply("User data not found.");
+        await message.reply("> User data not found.");
         return;
       }
 
@@ -190,7 +190,7 @@ client.on("messageCreate", async (message) => {
       });
 
       await message.reply(
-        `Title Request Logs for Kingdom ${kingdom}:\nSuccesses: ${successCount}\nFailures: ${failureCount}`
+        `> Title Request Logs for Kingdom ${kingdom}:\nSuccesses: ${successCount}\nFailures: ${failureCount}`
       );
       return;
     }
@@ -202,12 +202,12 @@ client.on("messageCreate", async (message) => {
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
-        await message.reply("You do not have permission to use this command.");
+        await message.reply("> You do not have permission to use this command.");
         return;
       }
 
       if (args.length < 2) {
-        await message.reply("Please provide a title to lock.");
+        await message.reply("> Please provide a title to lock.");
         return;
       }
 
@@ -222,10 +222,10 @@ client.on("messageCreate", async (message) => {
 
       if (lockedTitle) {
         await message.reply(
-          `Title "${title}" has been locked for kingdom ${kingdom}.`
+          `> Title "${title}" has been locked for kingdom ${kingdom}.`
         );
       } else {
-        await message.reply("There was an error locking the title.");
+        await message.reply("> There was an error locking the title.");
       }
       return;
     }
@@ -237,12 +237,12 @@ client.on("messageCreate", async (message) => {
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
-        await message.reply("You do not have permission to use this command.");
+        await message.reply("> You do not have permission to use this command.");
         return;
       }
 
       if (args.length < 2) {
-        await message.reply("Please provide a title to unlock.");
+        await message.reply("> Please provide a title to unlock.");
         return;
       }
 
@@ -257,11 +257,11 @@ client.on("messageCreate", async (message) => {
 
       if (lockedTitle) {
         await message.reply(
-          `Title "${title}" has been unlocked for kingdom ${kingdom}.`
+          `> Title "${title}" has been unlocked for kingdom ${kingdom}.`
         );
       } else {
         await message.reply(
-          `No locked title found for "${title}" in kingdom ${kingdom}.`
+          `> No locked title found for "${title}" in kingdom ${kingdom}.`
         );
       }
       return;
@@ -274,13 +274,13 @@ client.on("messageCreate", async (message) => {
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
-        await message.reply("You do not have permission to use this command.");
+        await message.reply("> You do not have permission to use this command.");
         return;
       }
 
       if (args.length < 3) {
         await message.reply(
-          "Invalid command format. Please use: `settimer <title> <duration>`."
+          "> Invalid command format. Please use: `settimer <title> <duration>`."
         );
         return;
       }
@@ -290,7 +290,7 @@ client.on("messageCreate", async (message) => {
       const kingdom = parseInt(process.env.KINGDOM, 10);
 
       if (!/^\d{4}$/.test(kingdom.toString())) {
-        await message.reply("Kingdom must be a 4-digit number.");
+        await message.reply("> Kingdom must be a 4-digit number.");
         return;
       }
 
@@ -311,7 +311,7 @@ client.on("messageCreate", async (message) => {
       }
 
       if (!title) {
-        await message.reply("Invalid title specified.");
+        await message.reply("> Invalid title specified.");
         return;
       }
 
@@ -324,11 +324,11 @@ client.on("messageCreate", async (message) => {
 
         if (result.upsertedCount > 0) {
           await message.reply(
-            `Timer for ${title} has been set to ${duration} seconds in kingdom ${kingdom}.`
+            `> Timer for ${title} has been set to ${duration} seconds in kingdom ${kingdom}.`
           );
         } else {
           await message.reply(
-            `Timer for ${title} has been updated to ${duration} seconds in kingdom ${kingdom}.`
+            `> Timer for ${title} has been updated to ${duration} seconds in kingdom ${kingdom}.`
           );
         }
       } catch (error) {
@@ -339,11 +339,11 @@ client.on("messageCreate", async (message) => {
 
         if (error.code === 11000) {
           await message.reply(
-            "Duplicate entry detected. Please check if the title already exists for the specified kingdom."
+            "> Duplicate entry detected. Please check if the title already exists for the specified kingdom."
           );
         } else {
           await message.reply(
-            "An unexpected error occurred while setting the timer."
+            "> An unexpected error occurred while setting the timer."
           );
         }
       }
@@ -357,7 +357,7 @@ client.on("messageCreate", async (message) => {
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
-        await message.reply("You do not have permission to use this command.");
+        await message.reply("> You do not have permission to use this command.");
         return;
       }
 
@@ -368,7 +368,7 @@ client.on("messageCreate", async (message) => {
         (error) => {
           if (error) {
             console.error(`Error stopping the app: ${error.message}`);
-            return message.reply("Failed to stop the app. Please try again.");
+            return message.reply("> Failed to stop the app. Please try again.");
           }
           exec(
             `adb -s ${deviceId} shell monkey -p com.lilithgame.roc.gp -c android.intent.category.LAUNCHER 1`,
@@ -376,7 +376,7 @@ client.on("messageCreate", async (message) => {
               if (error) {
                 console.error(`Error starting the app: ${error.message}`);
                 return message.reply(
-                  "Failed to start the app. Please try again."
+                  "> Failed to start the app. Please try again."
                 );
               }
 
@@ -392,13 +392,13 @@ client.on("messageCreate", async (message) => {
                         }`
                       );
                       return message.reply(
-                        "Failed to confirm app is running. Please check manually."
+                        "> Failed to confirm app is running. Please check manually."
                       );
                     }
 
                     // App is confirmed running
                     message.reply(
-                      "App has been reset and is running successfully!"
+                      "> App has been reset and is running successfully!"
                     );
                   }
                 );
@@ -431,7 +431,7 @@ client.on("messageCreate", async (message) => {
 
     if (lastUserRequest[userId] === title) {
       await message.reply(
-        `You cannot request the title "${title}" twice in a row. Please choose a different title.`
+        `> You cannot request the title "${title}" twice in a row. Please choose a different title.`
       );
       return;
     }
@@ -446,7 +446,7 @@ client.on("messageCreate", async (message) => {
 
     if (timeSinceLastRequest < 4000) {
       await message.reply(
-        "You are sending requests too quickly. Please wait a few seconds before trying again."
+        "> You are sending requests too quickly. Please wait a few seconds before trying again."
       );
       return;
     }
@@ -463,7 +463,7 @@ client.on("messageCreate", async (message) => {
 
       if (isNaN(x) || isNaN(y)) {
         await message.reply(
-          "Invalid coordinates. Please enter valid numbers for x and y."
+          "> Invalid coordinates. Please enter valid numbers for x and y."
         );
         return;
       }
@@ -477,7 +477,7 @@ client.on("messageCreate", async (message) => {
 
       if (x === null || y === null) {
         await message.reply(
-          "Coordinates are required for first-time registration. e.g: duke 123 456"
+          "> Coordinates are required for first-time registration. e.g: duke 123 456"
         );
         lastUserRequest[userId] = null;
         return;
@@ -492,7 +492,7 @@ client.on("messageCreate", async (message) => {
 
       await user.save();
       await message.reply(
-        `You have been registered with coordinates (${x}, ${y}) in Kingdom ${kingdom}.`
+        `> You have been registered with coordinates (${x}, ${y}) in Kingdom ${kingdom}.`
       );
     } else {
       // If the user exists and coordinates are provided, update their coordinates
@@ -511,7 +511,7 @@ client.on("messageCreate", async (message) => {
 
     if (lockedTitleDoc) {
       await message.reply(
-        `The title "${title}" is currently locked and cannot be requested.`
+        `> The title "${title}" is currently locked and cannot be requested.`
       );
       lastUserRequest[userId] = null;
       return;
@@ -531,7 +531,7 @@ client.on("messageCreate", async (message) => {
   } catch (error) {
     console.error("Error processing message:", error);
     await message.reply(
-      "There was an error processing your request. Please try again."
+      "> There was an error processing your request. Please try again."
     );
   }
 });
@@ -673,7 +673,7 @@ async function processGlobalAdbQueue() {
     // const screenshotPath = `./temp/screenshot_${title.toLowerCase()}_${deviceId}.png`;
 
     const notificationMessage = await interaction.channel.send({
-      content: `<@${userId}>, You're up for the title "${title}"! React with ✅ when done, you have ${remainingTime} seconds.`,
+      content: `> <@${userId}>, You're up for the title "${title}"! React with ✅ when done, you have ${remainingTime} seconds.`,
       // files: [screenshotPath],
     });
 
@@ -710,8 +710,8 @@ async function processGlobalAdbQueue() {
 
       const responseMessage =
         collected.size === 0
-          ? `<@${userId}>, Time's up! ⏰`
-          : `Done reaction collected. Moving to the next request.`;
+          ? `> <@${userId}>, Time's up! ⏰`
+          : `> Done reaction collected. Moving to the next request.`;
 
       if (interaction) {
         interaction.channel.send(responseMessage);
@@ -735,7 +735,7 @@ async function processGlobalAdbQueue() {
     let errorMessage = `<@${userId}>, ran into an error while processing your request for ${title}.`;
 
     if (error.message === "Title button not found in the ADB command.") {
-      errorMessage = `<@${userId}>, please check your city coordinates. If you can see your city, please let @popPIN know.`;
+      errorMessage = `> <@${userId}>, please check your city coordinates. If you can see your city, please let @popPIN know.`;
       if (request.interaction) {
         await request.interaction.channel.send({
           content: errorMessage,
@@ -1093,7 +1093,7 @@ async function handleTitleRequest(userId, title, interaction) {
 
       if (lockedTitle && lockedTitle.isLocked) {
         await interaction.reply(
-          `The title "${title}" is currently locked for your kingdom. Please choose a different title.`
+          `> The title "${title}" is currently locked for your kingdom. Please choose a different title.`
         );
         return;
       }
@@ -1130,18 +1130,18 @@ async function handleTitleRequest(userId, title, interaction) {
       if (queuePosition > 1) {
         if (!interaction.replied) {
           await interaction.reply(
-            `Your title request has been added to the queue for ${title}! You are number ${queuePosition} in line.`
+            `> Your title request has been added to the queue for ${title}! You are number ${queuePosition} in line.`
           );
         }
       } else {
         if (!interaction.replied) {
           if (!isTitleTimerRunning) {
             await interaction.reply(
-              `Your title request for ${title} is being processed immediately.`
+              `> Your title request for ${title} is being processed immediately.`
             );
           } else {
             await interaction.reply(
-              `Your title request for ${title} is next in line.`
+              `> Your title request for ${title} is next in line.`
             );
           }
         }
@@ -1149,7 +1149,7 @@ async function handleTitleRequest(userId, title, interaction) {
     } else {
       if (!interaction.replied) {
         await interaction.reply(
-          "You haven't registered your coordinates. Please type the following: `register [x] [y]`."
+          "> You haven't registered your coordinates. Please type the following: `register [x] [y]`."
         );
       }
     }
@@ -1157,7 +1157,7 @@ async function handleTitleRequest(userId, title, interaction) {
     console.error("An unexpected error occurred:", error);
     if (!interaction.replied) {
       await interaction.reply(
-        "An unexpected error occurred. Please try again later."
+        "> An unexpected error occurred. Please try again later."
       );
     }
   }
