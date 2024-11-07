@@ -735,7 +735,7 @@ async function processGlobalAdbQueue() {
     let errorMessage = `<@${userId}>, ran into an error while processing your request for ${title}.`;
 
     if (error.message === "Title button not found in the ADB command.") {
-      errorMessage = `> <@${userId}>, please check your city coordinates. If you can see your city, please let @popPIN know.`;
+      errorMessage = `> <@${userId}>, please check your city coordinates. To update them, type the title you need followed by your coordinates. For example: duke 123 456`;
       if (request.interaction) {
         await request.interaction.channel.send({
           content: errorMessage,
