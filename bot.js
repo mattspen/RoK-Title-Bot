@@ -59,146 +59,16 @@ client.on("messageCreate", async (message) => {
   const args = content.split(/\s+/);
 
   try {
-    if (args[0].toLowerCase() === "register") {
-      if (args.length < 3) {
-        // Adjusted to account for no username
-        await message.reply(
-          "> Please provide coordinates in the format: `register <x> <y>`."
-        );
-        return;
-      }
-
-      // Shift arguments if username is provided (assume coordinates are always last)
-      const isUsernamePresent = isNaN(args[1]); // Check if the second argument is a username
-      const x = parseInt(isUsernamePresent ? args[2] : args[1], 10);
-      const y = parseInt(isUsernamePresent ? args[3] : args[2], 10);
-
-      if (isNaN(x) || isNaN(y)) {
-        await message.reply(
-          "> Invalid coordinates. Please enter valid numbers for x and y."
-        );
-        return;
-      }
-
-      const userId = message.author.id;
-      const kingdom = parseInt(process.env.KINGDOM, 10);
-
-      const user = await User.findOne({ userId });
-
-      if (user) {
-        user.kingdom = kingdom;
-        user.x = x;
-        user.y = y;
-        await user.save();
-        await message.reply(
-          `> Your details have been updated: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
-        );
-      } else {
-        const newUser = new User({ userId, kingdom, x, y });
-        await newUser.save();
-        await message.reply(
-          `> You have been registered: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
-        );
-      }
-      return;
-    }
-
-    if (args[0].toLowerCase() === "registeruser") {
-      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-        id.trim()
-      );
-      const userId = message.author.id;
-
-      if (!superUserIds.includes(userId)) {
-        await message.reply("> You do not have permission to use this command.");
-        return;
-      }
-
-      if (args.length < 4) {
-        await message.reply(
-          "> Invalid command format. Please use: `registeruser <discordid> <x> <y>`."
-        );
-        return;
-      }
-
-      const targetUserId = args[1];
-      const isUsernamePresent = isNaN(args[2]); // Check if the third argument is a username
-      const x = parseInt(isUsernamePresent ? args[3] : args[2], 10);
-      const y = parseInt(isUsernamePresent ? args[4] : args[3], 10);
-      const kingdom = parseInt(process.env.KINGDOM, 10);
-
-      if (isNaN(x) || isNaN(y)) {
-        await message.reply(
-          "> Invalid coordinates. Please provide valid integers for x and y."
-        );
-        return;
-      }
-
-      const user = await User.findOne({ userId: targetUserId });
-
-      if (user) {
-        user.kingdom = kingdom;
-        user.x = x;
-        user.y = y;
-        await user.save();
-        await message.reply(
-          `> User with Discord ID ${targetUserId} has been updated: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
-        );
-      } else {
-        const newUser = new User({
-          userId: targetUserId,
-          kingdom,
-          x,
-          y,
-        });
-        await newUser.save();
-        await message.reply(
-          `> User with Discord ID ${targetUserId} has been registered: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
-        );
-      }
-      return;
-    }
-
-    if (args[0].toLowerCase() === "logs") {
-      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-        id.trim()
-      );
-      const userId = message.author.id;
-
-      if (!superUserIds.includes(userId)) {
-        await message.reply("> You do not have permission to view the logs.");
-        return;
-      }
-
-      // Find the requesting user's kingdom
-      const requestingUser = await User.findOne({ userId });
-      if (!requestingUser) {
-        await message.reply("> User data not found.");
-        return;
-      }
-
-      const { kingdom } = requestingUser;
-
-      // Filter logs by user's kingdom
-      const successCount = await TitleRequestLog.countDocuments({
-        status: "successful",
-        kingdom: kingdom,
-      });
-      const failureCount = await TitleRequestLog.countDocuments({
-        status: "unsuccessful",
-        kingdom: kingdom,
-      });
-
-      await message.reply(
-        `> Title Request Logs for Kingdom ${kingdom}:\nSuccesses: ${successCount}\nFailures: ${failureCount}`
-      );
-      return;
-    }
+    const titleMappings = {
+      Duke: ["d", "duke", "duk", "D"],
+      Justice: ["j", "justice", "jus", "J"],
+      Architect: ["a", "arch", "architect", "A"],
+      Scientist: ["s", "scientist", "sci", "S"],
+    };
+    const validTitles = Object.keys(titleMappings);
 
     if (args[0].toLowerCase() === "locktitle") {
-      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-        id.trim()
-      );
+      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) => id.trim());
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
@@ -211,19 +81,23 @@ client.on("messageCreate", async (message) => {
         return;
       }
 
-      const title = args[1];
+      const titleInput = args[1];
       const kingdom = process.env.KINGDOM;
 
+      // Validate title
+      if (!validTitles.some((key) => titleMappings[key].includes(titleInput.toLowerCase()))) {
+        await message.reply(`> Invalid title. Only the following titles can be locked: ${validTitles.join(", ")}.`);
+        return;
+      }
+
       const lockedTitle = await LockedTitle.findOneAndUpdate(
-        { title, kingdom },
+        { title: titleInput, kingdom },
         { isLocked: true },
         { upsert: true, new: true }
       );
 
       if (lockedTitle) {
-        await message.reply(
-          `> Title "${title}" has been locked for kingdom ${kingdom}.`
-        );
+        await message.reply(`> Title "${titleInput}" has been locked for kingdom ${kingdom}.`);
       } else {
         await message.reply("> There was an error locking the title.");
       }
@@ -231,9 +105,7 @@ client.on("messageCreate", async (message) => {
     }
 
     if (args[0].toLowerCase() === "unlocktitle") {
-      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-        id.trim()
-      );
+      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) => id.trim());
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
@@ -246,31 +118,128 @@ client.on("messageCreate", async (message) => {
         return;
       }
 
-      const title = args[1];
+      const titleInput = args[1];
       const kingdom = process.env.KINGDOM;
 
+      // Validate title
+      if (!validTitles.some((key) => titleMappings[key].includes(titleInput.toLowerCase()))) {
+        await message.reply(`> Invalid title. Only the following titles can be unlocked: ${validTitles.join(", ")}.`);
+        return;
+      }
+
       const lockedTitle = await LockedTitle.findOneAndUpdate(
-        { title, kingdom },
+        { title: titleInput, kingdom },
         { isLocked: false },
         { new: true }
       );
 
       if (lockedTitle) {
-        await message.reply(
-          `> Title "${title}" has been unlocked for kingdom ${kingdom}.`
-        );
+        await message.reply(`> Title "${titleInput}" has been unlocked for kingdom ${kingdom}.`);
       } else {
-        await message.reply(
-          `> No locked title found for "${title}" in kingdom ${kingdom}.`
-        );
+        await message.reply(`> No locked title found for "${titleInput}" in kingdom ${kingdom}.`);
       }
       return;
     }
 
+    if (args[0].toLowerCase() === "register") {
+      if (args.length < 3) {
+        await message.reply("> Please provide coordinates in the format: `register <x> <y>`.");
+        return;
+      }
+
+      const isUsernamePresent = isNaN(args[1]);
+      const x = parseInt(isUsernamePresent ? args[2] : args[1], 10);
+      const y = parseInt(isUsernamePresent ? args[3] : args[2], 10);
+
+      if (isNaN(x) || isNaN(y)) {
+        await message.reply("> Invalid coordinates. Please enter valid numbers for x and y.");
+        return;
+      }
+
+      const userId = message.author.id;
+      const kingdom = parseInt(process.env.KINGDOM, 10);
+      const user = await User.findOne({ userId });
+
+      if (user) {
+        user.kingdom = kingdom;
+        user.x = x;
+        user.y = y;
+        await user.save();
+        await message.reply(`> Your details have been updated: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`);
+      } else {
+        const newUser = new User({ userId, kingdom, x, y });
+        await newUser.save();
+        await message.reply(`> You have been registered: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`);
+      }
+      return;
+    }
+
+    if (args[0].toLowerCase() === "registeruser") {
+      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) => id.trim());
+      const userId = message.author.id;
+
+      if (!superUserIds.includes(userId)) {
+        await message.reply("> You do not have permission to use this command.");
+        return;
+      }
+
+      if (args.length < 4) {
+        await message.reply("> Invalid command format. Please use: `registeruser <discordid> <x> <y>`.");
+        return;
+      }
+
+      const targetUserId = args[1];
+      const isUsernamePresent = isNaN(args[2]);
+      const x = parseInt(isUsernamePresent ? args[3] : args[2], 10);
+      const y = parseInt(isUsernamePresent ? args[4] : args[3], 10);
+      const kingdom = parseInt(process.env.KINGDOM, 10);
+
+      if (isNaN(x) || isNaN(y)) {
+        await message.reply("> Invalid coordinates. Please provide valid integers for x and y.");
+        return;
+      }
+
+      const user = await User.findOne({ userId: targetUserId });
+
+      if (user) {
+        user.kingdom = kingdom;
+        user.x = x;
+        user.y = y;
+        await user.save();
+        await message.reply(`> User with Discord ID ${targetUserId} has been updated: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`);
+      } else {
+        const newUser = new User({ userId: targetUserId, kingdom, x, y });
+        await newUser.save();
+        await message.reply(`> User with Discord ID ${targetUserId} has been registered: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`);
+      }
+      return;
+    }
+
+    if (args[0].toLowerCase() === "logs") {
+      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) => id.trim());
+      const userId = message.author.id;
+
+      if (!superUserIds.includes(userId)) {
+        await message.reply("> You do not have permission to view the logs.");
+        return;
+      }
+
+      const requestingUser = await User.findOne({ userId });
+      if (!requestingUser) {
+        await message.reply("> User data not found.");
+        return;
+      }
+
+      const { kingdom } = requestingUser;
+      const successCount = await TitleRequestLog.countDocuments({ status: "successful", kingdom });
+      const failureCount = await TitleRequestLog.countDocuments({ status: "unsuccessful", kingdom });
+
+      await message.reply(`> Title Request Logs for Kingdom ${kingdom}:\nSuccesses: ${successCount}\nFailures: ${failureCount}`);
+      return;
+    }
+
     if (args[0].toLowerCase() === "settimer") {
-      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-        id.trim()
-      );
+      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) => id.trim());
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
@@ -279,9 +248,7 @@ client.on("messageCreate", async (message) => {
       }
 
       if (args.length < 3) {
-        await message.reply(
-          "> Invalid command format. Please use: `settimer <title> <duration>`."
-        );
+        await message.reply("> Invalid command format. Please use: `settimer <title> <duration>`.");
         return;
       }
 
@@ -293,13 +260,6 @@ client.on("messageCreate", async (message) => {
         await message.reply("> Kingdom must be a 4-digit number.");
         return;
       }
-
-      const titleMappings = {
-        duke: ["d", "duke"],
-        justice: ["j", "justice"],
-        architect: ["a", "arch", "architect"],
-        scientist: ["s", "sci", "scientist"],
-      };
 
       let title = null;
 
@@ -323,37 +283,23 @@ client.on("messageCreate", async (message) => {
         );
 
         if (result.upsertedCount > 0) {
-          await message.reply(
-            `> Timer for ${title} has been set to ${duration} seconds in kingdom ${kingdom}.`
-          );
+          await message.reply(`> Timer for ${title} has been set to ${duration} seconds in kingdom ${kingdom}.`);
         } else {
-          await message.reply(
-            `> Timer for ${title} has been updated to ${duration} seconds in kingdom ${kingdom}.`
-          );
+          await message.reply(`> Timer for ${title} has been updated to ${duration} seconds in kingdom ${kingdom}.`);
         }
       } catch (error) {
-        console.error(
-          "An unexpected error occurred while updating the timer:",
-          error
-        );
-
+        console.error("An unexpected error occurred while updating the timer:", error);
         if (error.code === 11000) {
-          await message.reply(
-            "> Duplicate entry detected. Please check if the title already exists for the specified kingdom."
-          );
+          await message.reply("> Duplicate entry detected. Please check if the title already exists for the specified kingdom.");
         } else {
-          await message.reply(
-            "> An unexpected error occurred while setting the timer."
-          );
+          await message.reply("> An unexpected error occurred while setting the timer.");
         }
       }
       return;
     }
 
     if (args[0].toLowerCase() === "resetbot") {
-      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-        id.trim()
-      );
+      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) => id.trim());
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
@@ -363,59 +309,30 @@ client.on("messageCreate", async (message) => {
 
       const deviceId = process.env.EMULATOR_DEVICE_ID;
 
-      exec(
-        `adb -s ${deviceId} shell am force-stop com.lilithgame.roc.gp`,
-        (error) => {
-          if (error) {
-            console.error(`Error stopping the app: ${error.message}`);
-            return message.reply("> Failed to stop the app. Please try again.");
-          }
-          exec(
-            `adb -s ${deviceId} shell monkey -p com.lilithgame.roc.gp -c android.intent.category.LAUNCHER 1`,
-            (error) => {
-              if (error) {
-                console.error(`Error starting the app: ${error.message}`);
-                return message.reply(
-                  "> Failed to start the app. Please try again."
-                );
-              }
-
-              // Check if the app is running
-              setTimeout(() => {
-                exec(
-                  `adb -s ${deviceId} shell pidof com.lilithgame.roc.gp`,
-                  (error, stdout) => {
-                    if (error || !stdout.trim()) {
-                      console.error(
-                        `App is not running: ${
-                          error ? error.message : "No process found."
-                        }`
-                      );
-                      return message.reply(
-                        "> Failed to confirm app is running. Please check manually."
-                      );
-                    }
-
-                    // App is confirmed running
-                    message.reply(
-                      "> App has been reset and is running successfully!"
-                    );
-                  }
-                );
-              }, 25000); // Wait for 25 seconds before checking the app status
-            }
-          );
+      exec(`adb -s ${deviceId} shell am force-stop com.lilithgame.roc.gp`, (error) => {
+        if (error) {
+          console.error(`Error stopping the app: ${error.message}`);
+          return message.reply("> Failed to stop the app. Please try again.");
         }
-      );
+        exec(`adb -s ${deviceId} shell monkey -p com.lilithgame.roc.gp -c android.intent.category.LAUNCHER 1`, (error) => {
+          if (error) {
+            console.error(`Error starting the app: ${error.message}`);
+            return message.reply("> Failed to start the app. Please try again.");
+          }
+
+          setTimeout(() => {
+            exec(`adb -s ${deviceId} shell pidof com.lilithgame.roc.gp`, (error, stdout) => {
+              if (error || !stdout.trim()) {
+                console.error(`App is not running: ${error ? error.message : "No process found."}`);
+                return message.reply("> Failed to confirm app is running. Please check manually.");
+              }
+              message.reply("> App has been reset and is running successfully!");
+            });
+          }, 25000); // Wait for 25 seconds before checking the app status
+        });
+      });
       return;
     }
-
-    const titleMappings = {
-      Duke: ["d", "duke", "duk", "D"],
-      Justice: ["j", "justice", "jus", "J"],
-      Architect: ["a", "arch", "architect", "A"],
-      Scientist: ["s", "scientist", "sci", "S"],
-    };
 
     let title = null;
     for (const [key, variations] of Object.entries(titleMappings)) {
@@ -430,9 +347,7 @@ client.on("messageCreate", async (message) => {
     const userId = message.author.id;
 
     if (lastUserRequest[userId] === title) {
-      await message.reply(
-        `> You cannot request the title "${title}" twice in a row. Please choose a different title.`
-      );
+      await message.reply(`> You cannot request the title "${title}" twice in a row. Please choose a different title.`);
       return;
     }
 
@@ -445,16 +360,13 @@ client.on("messageCreate", async (message) => {
     const timeSinceLastRequest = now - lastRequestTime;
 
     if (timeSinceLastRequest < 4000) {
-      await message.reply(
-        "> You are sending requests too quickly. Please wait a few seconds before trying again."
-      );
+      await message.reply("> You are sending requests too quickly. Please wait a few seconds before trying again.");
       return;
     }
 
     client.lastTitleRequestTime[userId] = now;
     lastUserRequest[userId] = title;
 
-    // Parse coordinates if provided (after the title)
     let x = null;
     let y = null;
     if (args.length >= 3) {
@@ -462,9 +374,7 @@ client.on("messageCreate", async (message) => {
       y = parseInt(args[2], 10);
 
       if (isNaN(x) || isNaN(y)) {
-        await message.reply(
-          "> Invalid coordinates. Please enter valid numbers for x and y."
-        );
+        await message.reply("> Invalid coordinates. Please enter valid numbers for x and y.");
         return;
       }
     }
@@ -472,30 +382,18 @@ client.on("messageCreate", async (message) => {
     let user = await User.findOne({ userId });
 
     if (!user) {
-      // If the user is not found, register them automatically
       const kingdom = parseInt(process.env.KINGDOM, 10);
 
       if (x === null || y === null) {
-        await message.reply(
-          "> Coordinates are required for first-time registration. e.g: duke 123 456"
-        );
+        await message.reply("> Coordinates are required for first-time registration. e.g: duke 123 456");
         lastUserRequest[userId] = null;
         return;
       }
 
-      user = new User({
-        userId,
-        kingdom,
-        x,
-        y,
-      });
-
+      user = new User({ userId, kingdom, x, y });
       await user.save();
-      await message.reply(
-        `> You have been registered with coordinates (${x}, ${y}) in Kingdom ${kingdom}.`
-      );
+      await message.reply(`> You have been registered with coordinates (${x}, ${y}) in Kingdom ${kingdom}.`);
     } else {
-      // If the user exists and coordinates are provided, update their coordinates
       if (x !== null && y !== null) {
         user.x = x;
         user.y = y;
@@ -510,9 +408,7 @@ client.on("messageCreate", async (message) => {
     });
 
     if (lockedTitleDoc) {
-      await message.reply(
-        `> The title "${title}" is currently locked and cannot be requested.`
-      );
+      await message.reply(`> The title "${title}" is currently locked and cannot be requested.`);
       lastUserRequest[userId] = null;
       return;
     }
@@ -520,19 +416,16 @@ client.on("messageCreate", async (message) => {
     const titleRequestLog = new TitleRequestLog({
       userId,
       title,
-      username: user.username || "nil", // Username is optional
+      username: user.username || "nil",
       kingdom: user.kingdom,
       status: "pending",
     });
 
     await titleRequestLog.save();
-
     await handleTitleRequest(userId, title, message);
   } catch (error) {
     console.error("Error processing message:", error);
-    await message.reply(
-      "> There was an error processing your request. Please try again."
-    );
+    await message.reply("> There was an error processing your request. Please try again.");
   }
 });
 
@@ -809,8 +702,7 @@ function execAsync(command, retries = 3) {
         if (error) {
           if (error.code === "ECONNRESET" && retryCount > 0) {
             console.warn(
-              `ECONNRESET error occurred. Retrying... (${
-                retries - retryCount + 1
+              `ECONNRESET error occurred. Retrying... (${retries - retryCount + 1
               }/${retries})`
             );
             return attempt(retryCount - 1);
@@ -899,6 +791,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
     { x: 968, y: 548 },
     { x: 882, y: 576 },
     { x: 970, y: 560 },
+    { x: 844, y: 442 },
   ];
 
   async function tapCityAndCheck() {
@@ -1039,7 +932,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
 
   async function executeCommandWithDelay(commands, index) {
     if (index >= commands.length) return Promise.resolve();
-  
+
     return new Promise((resolve, reject) => {
       exec(commands[index], (error, stdout) => {
         if (error) {
@@ -1047,9 +940,9 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
           reject(error);
           return;
         }
-  
+
         const randomDelay = Math.floor(Math.random() * (300 - 100 + 1)) + 100;
-  
+
         setTimeout(() => {
           executeCommandWithDelay(commands, index + 1)
             .then(resolve)
@@ -1057,7 +950,7 @@ async function runAdbCommand(userId, x, y, title, kingdom) {
         }, randomDelay);
       });
     });
-  }  
+  }
 
   try {
     await executeCommandWithDelay(initialCommands, 0);
@@ -1090,7 +983,7 @@ async function handleTitleRequest(userId, title, interaction) {
         title,
         kingdom: user.kingdom,
       });
-
+      console.log(lockedTitle);
       if (lockedTitle && lockedTitle.isLocked) {
         await interaction.reply(
           `> The title "${title}" is currently locked for your kingdom. Please choose a different title.`
