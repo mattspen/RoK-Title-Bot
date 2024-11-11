@@ -81,26 +81,46 @@ client.on("messageCreate", async (message) => {
         return;
       }
 
-      const titleInput = args[1];
+      const titleInput = args[1].toLowerCase();
       const kingdom = process.env.KINGDOM;
 
+      // Normalize the title input to the canonical title using titleMappings
+      const normalizedTitle = Object.keys(titleMappings).find((key) =>
+        titleMappings[key].includes(titleInput)
+      );
+
       // Validate title
-      if (!validTitles.some((key) => titleMappings[key].includes(titleInput.toLowerCase()))) {
+      if (!normalizedTitle) {
         await message.reply(`> Invalid title. Only the following titles can be locked: ${validTitles.join(", ")}.`);
         return;
       }
 
       const lockedTitle = await LockedTitle.findOneAndUpdate(
-        { title: titleInput, kingdom },
-        { isLocked: true },
+        { title: normalizedTitle, kingdom },
+        { isLocked: true, lockedBy: userId, lockedAt: new Date() }, // Set lockedBy and lockedAt
         { upsert: true, new: true }
       );
 
-      if (lockedTitle) {
-        await message.reply(`> Title "${titleInput}" has been locked for kingdom ${kingdom}.`);
-      } else {
-        await message.reply("> There was an error locking the title.");
-      }
+      const embed = {
+        color: 0xff0000, // Red color for lock
+        title: `🔒 Title Locked`,
+        description: lockedTitle
+          ? `The title "${normalizedTitle}" has been successfully locked for kingdom ${kingdom}.`
+          : "There was an error locking the title.",
+        fields: [
+          { name: "Title", value: normalizedTitle, inline: true },
+          { name: "Kingdom", value: kingdom, inline: true },
+          { name: "Locked By", value: `<@${userId}>`, inline: true },
+          { name: "Locked At", value: new Date().toLocaleString(), inline: true },
+        ],
+        footer: {
+          text: `Locked by ${message.author.username}`,
+          icon_url: message.author.displayAvatarURL(),
+        },
+        timestamp: new Date(),
+      };
+
+      await message.reply({ embeds: [embed] });
       return;
     }
 
@@ -118,28 +138,49 @@ client.on("messageCreate", async (message) => {
         return;
       }
 
-      const titleInput = args[1];
+      const titleInput = args[1].toLowerCase();
       const kingdom = process.env.KINGDOM;
 
+      // Normalize the title input to the canonical title using titleMappings
+      const normalizedTitle = Object.keys(titleMappings).find((key) =>
+        titleMappings[key].includes(titleInput)
+      );
+
       // Validate title
-      if (!validTitles.some((key) => titleMappings[key].includes(titleInput.toLowerCase()))) {
+      if (!normalizedTitle) {
         await message.reply(`> Invalid title. Only the following titles can be unlocked: ${validTitles.join(", ")}.`);
         return;
       }
 
       const lockedTitle = await LockedTitle.findOneAndUpdate(
-        { title: titleInput, kingdom },
-        { isLocked: false },
+        { title: normalizedTitle, kingdom },
+        { isLocked: false, lockedBy: null, lockedAt: null }, // Reset lockedBy and lockedAt
         { new: true }
       );
 
-      if (lockedTitle) {
-        await message.reply(`> Title "${titleInput}" has been unlocked for kingdom ${kingdom}.`);
-      } else {
-        await message.reply(`> No locked title found for "${titleInput}" in kingdom ${kingdom}.`);
-      }
+      const embed = {
+        color: 0x00ff00, // Green color for unlock
+        title: `🔓 Title Unlocked`,
+        description: lockedTitle
+          ? `The title "${normalizedTitle}" has been successfully unlocked for kingdom ${kingdom}.`
+          : `No locked title found for "${normalizedTitle}" in kingdom ${kingdom}.`,
+        fields: [
+          { name: "Title", value: normalizedTitle, inline: true },
+          { name: "Kingdom", value: kingdom, inline: true },
+          { name: "Unlocked By", value: `<@${userId}>`, inline: true },
+        ],
+        footer: {
+          text: `Unlocked by ${message.author.username}`,
+          icon_url: message.author.displayAvatarURL(),
+        },
+        timestamp: new Date(),
+      };
+
+      await message.reply({ embeds: [embed] });
       return;
     }
+
+
 
     if (args[0].toLowerCase() === "register") {
       if (args.length < 3) {
@@ -160,17 +201,32 @@ client.on("messageCreate", async (message) => {
       const kingdom = parseInt(process.env.KINGDOM, 10);
       const user = await User.findOne({ userId });
 
+      const embed = {
+        color: 0xADD8E6, // Light blue color for the embed
+        title: "📍 Registration",
+        description: `Kingdom: **${kingdom}**\nCoordinates: **(${x}, ${y})**`,
+        timestamp: new Date(),
+        footer: {
+          text: `Requested by ${message.author.username}`,
+          icon_url: message.author.displayAvatarURL(),
+        },
+      };
+
       if (user) {
+        // Update existing user
         user.kingdom = kingdom;
         user.x = x;
         user.y = y;
         await user.save();
-        await message.reply(`> Your details have been updated: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`);
+        embed.description = `✅ Your details have been updated:\n\n${embed.description}`;
       } else {
+        // Register new user
         const newUser = new User({ userId, kingdom, x, y });
         await newUser.save();
-        await message.reply(`> You have been registered: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`);
+        embed.description = `🎉 You have been registered:\n\n${embed.description}`;
       }
+
+      await message.reply({ embeds: [embed] });
       return;
     }
 
@@ -234,9 +290,23 @@ client.on("messageCreate", async (message) => {
       const successCount = await TitleRequestLog.countDocuments({ status: "successful", kingdom });
       const failureCount = await TitleRequestLog.countDocuments({ status: "unsuccessful", kingdom });
 
-      await message.reply(`> Title Request Logs for Kingdom ${kingdom}:\nSuccesses: ${successCount}\nFailures: ${failureCount}`);
+      const embed = {
+        color: 0x3498db, // Light blue color
+        title: `📜 Title Request Logs for Kingdom ${kingdom}`,
+        description: `**✅ Successes:** ${successCount}    **❌ Failures:** ${failureCount}`,
+        footer: {
+          text: `Requested by ${message.author.username}`,
+          icon_url: message.author.displayAvatarURL(),
+        },
+        timestamp: new Date(),
+      };
+
+      await message.reply({ embeds: [embed] });
       return;
     }
+
+
+
 
     if (args[0].toLowerCase() === "settimer") {
       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) => id.trim());
@@ -360,7 +430,7 @@ client.on("messageCreate", async (message) => {
     const timeSinceLastRequest = now - lastRequestTime;
 
     if (timeSinceLastRequest < 4000) {
-      await message.reply("> You are sending requests too quickly. Please wait a few seconds before trying again.");
+      await message.reply("You are sending requests too quickly. Please wait a few seconds before trying again.");
       return;
     }
 
@@ -408,11 +478,34 @@ client.on("messageCreate", async (message) => {
     });
 
     if (lockedTitleDoc) {
-      await message.reply(`> The title "${title}" is currently locked and cannot be requested.`);
+      // Retrieve lockedBy and lockedAt information if available
+      const lockedByUser = lockedTitleDoc.lockedBy 
+        ? await message.client.users.fetch(lockedTitleDoc.lockedBy).catch(() => null)
+        : null;
+      const lockedBy = lockedByUser ? lockedByUser.tag : "Unknown User";
+      const lockedAt = lockedTitleDoc.lockedAt ? lockedTitleDoc.lockedAt.toLocaleString() : "Unknown Time";
+    
+      const embed = {
+        color: 0xff0000, // Red color to indicate locked status
+        title: `🔒 Title "${title}" is Locked`,
+        description: `The title "${title}" is currently locked and cannot be requested.`,
+        fields: [
+          { name: "👤 Locked By", value: lockedBy, inline: true },
+          { name: "⏰ Locked At", value: lockedAt, inline: true },
+          { name: "🔄 Action", value: "Please choose a different title or try again later.", inline: false },
+        ],
+        footer: {
+          text: `Requested by ${message.author.username}`,
+          icon_url: message.author.displayAvatarURL(),
+        },
+        timestamp: new Date(),
+      };
+    
+      await message.reply({ embeds: [embed] });
       lastUserRequest[userId] = null;
       return;
     }
-
+    
     const titleRequestLog = new TitleRequestLog({
       userId,
       title,
@@ -562,12 +655,8 @@ async function processGlobalAdbQueue() {
       remainingTime = customDuration;
     }
 
-    const deviceId = process.env.EMULATOR_DEVICE_ID;
-    // const screenshotPath = `./temp/screenshot_${title.toLowerCase()}_${deviceId}.png`;
-
     const notificationMessage = await interaction.channel.send({
-      content: `> <@${userId}>, You're up for the title "${title}"! React with ✅ when done, you have ${remainingTime} seconds.`,
-      // files: [screenshotPath],
+      content: ` <@${userId}>, You're up for the title "${title}"! React with ✅ when done, you have ${remainingTime} seconds.`,
     });
 
     await notificationMessage.react("✅");
@@ -603,8 +692,8 @@ async function processGlobalAdbQueue() {
 
       const responseMessage =
         collected.size === 0
-          ? `> <@${userId}>, Time's up! ⏰`
-          : `> Done reaction collected. Moving to the next request.`;
+          ? `<@${userId}>, Time's up! ⏰`
+          : `Done reaction collected. Moving to the next request.`;
 
       if (interaction) {
         interaction.channel.send(responseMessage);
@@ -628,11 +717,21 @@ async function processGlobalAdbQueue() {
     let errorMessage = `<@${userId}>, ran into an error while processing your request for ${title}.`;
 
     if (error.message === "Title button not found in the ADB command.") {
-      errorMessage = `> <@${userId}>, please check your city coordinates. To update them, type the title you need followed by your coordinates. For example: duke 123 456`;
+      errorMessage = `<@${userId}>, please check your city coordinates. To update them, type the title you need followed by your coordinates. For example: \`duke 123 456\``;
+
+      const embed = {
+        color: 0xff0000,
+        title: "Error: Title Button Not Found",
+        description: errorMessage,
+        image: {
+          url: `attachment://${screenshotPath.split('/').pop()}`,
+        },
+      };
+
       if (request.interaction) {
         await request.interaction.channel.send({
-          content: errorMessage,
-          files: [screenshotPath],
+          embeds: [embed],
+          files: [{ attachment: screenshotPath }],
         });
       }
     }
@@ -658,6 +757,7 @@ async function processGlobalAdbQueue() {
     processGlobalAdbQueue();
   }
 }
+
 
 async function processQueue(title) {
   if (isProcessing[title] || queues[title].length === 0) {
@@ -981,23 +1081,34 @@ async function handleTitleRequest(userId, title, interaction) {
 
       const lockedTitle = await LockedTitle.findOne({
         title,
-        kingdom: user.kingdom,
+        kingdom: userKingdom,
       });
-      console.log(lockedTitle);
+      const customDuration = (await fetchCustomDurationFromDatabase(title, userKingdom)) 
+      || titleDurations[title] || 0;
+
       if (lockedTitle && lockedTitle.isLocked) {
-        await interaction.reply(
-          `> The title "${title}" is currently locked for your kingdom. Please choose a different title.`
-        );
+        // Prepare lockedBy and lockedAt information if available
+        const lockedByUser = lockedTitle.lockedBy
+          ? await interaction.client.users.fetch(lockedTitle.lockedBy).catch(() => null)
+          : null;
+        const lockedBy = lockedByUser ? lockedByUser.tag : "Unknown User";
+        const lockedAt = lockedTitle.lockedAt ? lockedTitle.lockedAt.toLocaleString() : "Unknown Time";
+
+        const embed = {
+          color: 0x87cefa,
+          title: `🔒 The title "${title}" is currently locked for your kingdom.`,
+          description: "Please choose a different title.",
+          fields: [
+            { name: "👤 Locked By", value: lockedBy, inline: true },
+            { name: "⏰ Locked At", value: lockedAt, inline: true },
+          ],
+        };
+        await interaction.reply({ embeds: [embed] });
         return;
       }
 
-      if (!queues[title]) {
-        queues[title] = [];
-      }
-
-      if (!isProcessing[title]) {
-        isProcessing[title] = false;
-      }
+      if (!queues[title]) queues[title] = [];
+      if (!isProcessing[title]) isProcessing[title] = false;
 
       const request = {
         interaction,
@@ -1009,49 +1120,39 @@ async function handleTitleRequest(userId, title, interaction) {
       };
 
       queues[title].push(request);
-
       const queuePosition = queues[title].length;
-
       lastUserRequest[userId] = title;
 
-      if (!isProcessing[title]) {
-        processQueue(title);
-      }
+      if (!isProcessing[title]) processQueue(title);
 
       const isTitleTimerRunning = timers[title] != null;
 
-      if (queuePosition > 1) {
-        if (!interaction.replied) {
-          await interaction.reply(
-            `> Your title request has been added to the queue for ${title}! You are number ${queuePosition} in line.`
-          );
-        }
-      } else {
-        if (!interaction.replied) {
-          if (!isTitleTimerRunning) {
-            await interaction.reply(
-              `> Your title request for ${title} is being processed immediately.`
-            );
-          } else {
-            await interaction.reply(
-              `> Your title request for ${title} is next in line.`
-            );
-          }
-        }
-      }
+      const embed = {
+        color: 0x87cefa,
+        title: `${title} Request Added`,
+        description: `**Position in Queue**: ${queuePosition}\n📌 **Coordinates**: ${user.x}, ${user.y}\n⌛ **Custom Duration**: ${customDuration} sec`,
+      };
+      await interaction.reply({ embeds: [embed] });
     } else {
       if (!interaction.replied) {
-        await interaction.reply(
-          "> You haven't registered your coordinates. Please type the following: `register [x] [y]`."
-        );
+        const embed = {
+          color: 0x87cefa,
+          title: "❗ Unregistered Coordinates",
+          description:
+            "You haven't registered your coordinates. Please type the following: `register [x] [y]`.",
+        };
+        await interaction.reply({ embeds: [embed] });
       }
     }
   } catch (error) {
     console.error("An unexpected error occurred:", error);
     if (!interaction.replied) {
-      await interaction.reply(
-        "> An unexpected error occurred. Please try again later."
-      );
+      const embed = {
+        color: 0x87cefa,
+        title: "⚠️ Unexpected Error",
+        description: "An unexpected error occurred. Please try again later.",
+      };
+      await interaction.reply({ embeds: [embed] });
     }
   }
 }

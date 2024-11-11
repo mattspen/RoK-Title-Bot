@@ -15,6 +15,14 @@ const lockedTitleSchema = new mongoose.Schema({
     type: Boolean,
     default: false, // Default value is false
   },
+  lockedBy: {
+    type: String, // Store the ID of the user who locked the title
+    default: null,
+  },
+  lockedAt: {
+    type: Date, // Store the timestamp when the title was locked
+    default: null,
+  },
 });
 
 // Ensure uniqueness of title and kingdom combination
