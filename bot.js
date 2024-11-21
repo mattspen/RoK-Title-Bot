@@ -14,7 +14,7 @@ import {
   titleDurations,
 } from "./helpers/vars.js";
 import { fetchCustomDurationFromDatabase } from "./helpers/fetchCustomDurationFromDatabase.js";
-import { getRandomInt } from "./helpers/getRandomInt.js";
+import schedule from "node-schedule";
 import TitleRequestLog from "./models/TitleRequestLog.js";
 
 dotenv.config({
@@ -40,14 +40,25 @@ client.login(process.env.DISCORD_TOKEN).catch((error) => {
   console.error("Failed to login:", error);
 });
 
-client.once("ready", () => {
+client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}!`);
 
   console.log("Connected to the following servers:");
-  client.guilds.cache.forEach((guild) => {
+  client.guilds.cache.forEach(async (guild) => {
     console.log(
       `- ${guild.name} (ID: ${guild.id}, Members: ${guild.memberCount})`
     );
+
+    try {
+      // Set bot nickname for the guild
+      await guild.members.me.setNickname("Title Oracle 🔮");
+      console.log(`Nickname updated successfully in ${guild.name}`);
+    } catch (error) {
+      console.error(
+        `Failed to update nickname in ${guild.name}:`,
+        error.message
+      );
+    }
   });
 });
 
@@ -769,7 +780,7 @@ async function processGlobalAdbQueue() {
     }
 
     const notificationMessage = await interaction.channel.send({
-      content: ` <@${userId}>, You're up for the title "${title}"! React with ✅ when done, you have ${remainingTime} seconds.`,
+      content: ` <@${userId}>, You're up for "${title}"! React with ✅ when done, you have ${remainingTime} sec.`,
     });
 
     await notificationMessage.react("✅");
@@ -1153,7 +1164,7 @@ async function runAdbCommand(userId, x, y, title, kingdom, isLostKingdom) {
 
   // 2. Kingdom tap (X: 607-760, Y: 183-226)
   const lostKingdomX = Math.floor(Math.random() * (735 - 622 + 1)) + 607; // Random X between 607 and 760
-  const lostKingdomY = Math.floor(Math.random() * (240 - 195 + 1)) + 195 // Random Y between 183 and 226
+  const lostKingdomY = Math.floor(Math.random() * (240 - 195 + 1)) + 195; // Random Y between 183 and 226
 
   // 3. X tap (X: 877-999, Y: 195-240)
   const randomX3 = Math.floor(Math.random() * (999 - 877 + 1)) + 877; // Random X3 between 877 and 999
@@ -1161,11 +1172,11 @@ async function runAdbCommand(userId, x, y, title, kingdom, isLostKingdom) {
 
   // 4. Y tap (X: 1115-1255, Y: 195-240)
   const randomX4 = Math.floor(Math.random() * (1255 - 1115 + 1)) + 1115; // Random X4 between 1115 and 1255
-  const randomY4 =  Math.floor(Math.random() * (240 - 195 + 1)) + 195; // Use the same Y as randomY3 (195-240)
+  const randomY4 = Math.floor(Math.random() * (240 - 195 + 1)) + 195; // Use the same Y as randomY3 (195-240)
 
   // 5. Magnifying glass tap (X: 1295-1350, Y: 195-240)
   const randomX5 = Math.floor(Math.random() * (1350 - 1295 + 1)) + 1295; // Random X5 between 1295 and 1350
-  const randomY5 =  Math.floor(Math.random() * (240 - 195 + 1)) + 195; // Use the same Y as randomY3 (195-240)
+  const randomY5 = Math.floor(Math.random() * (240 - 195 + 1)) + 195; // Use the same Y as randomY3 (195-240)
 
   // Initialize the commands array here before use
   const initialCommands = [
@@ -1247,6 +1258,75 @@ async function runAdbCommand(userId, x, y, title, kingdom, isLostKingdom) {
   }
 }
 
+function refreshApp(channel) {
+  const deviceId = process.env.EMULATOR_DEVICE_ID;
+
+  if (!deviceId) {
+    console.error("No device ID found. Skipping refresh.");
+    return;
+  }
+
+  console.log("Refreshing Rise of Kingdoms app...");
+
+  // Send embed notification to the specified channel
+  const embed = {
+    color: 0x3498db, // Light blue color
+    title: "🔄 App Refresh",
+    description:
+      "The Rise of Kingdoms app is being refreshed. Please wait a moment.",
+    footer: {
+      text: "App refresh initiated",
+    },
+    timestamp: new Date(),
+  };
+
+  if (channel) {
+    channel
+      .send({ embeds: [embed] })
+      .catch((err) => console.error("Failed to send refresh embed:", err));
+  }
+
+  exec(
+    `adb -s ${deviceId} shell am force-stop com.lilithgame.roc.gp`,
+    (stopError) => {
+      if (stopError) {
+        console.error("Failed to stop RoK app:", stopError.message);
+        return;
+      }
+      console.log("App stopped successfully.");
+
+      // Restart the app after a brief delay
+      setTimeout(() => {
+        exec(
+          `adb -s ${deviceId} shell monkey -p com.lilithgame.roc.gp -c android.intent.category.LAUNCHER 1`,
+          (startError) => {
+            if (startError) {
+              console.error("Failed to restart RoK app:", startError.message);
+              return;
+            }
+            console.log("App restarted successfully.");
+          }
+        );
+      }, 5000); // 5-second delay before restarting
+    }
+  );
+}
+
+// Schedule the task to run at 1 AM daily
+schedule.scheduleJob("0 1 * * *", () => {
+  console.log("Running scheduled RoK app refresh...");
+
+  // Specify the channel where you want to send the notification
+  const channel = client.channels.cache.get(process.env.DISCORD_CHANNEL_ID);
+  if (channel) {
+    refreshApp(channel);
+  } else {
+    console.error(
+      "Failed to find the Discord channel for app refresh notification."
+    );
+  }
+});
+
 async function handleTitleRequest(userId, title, interaction, isLostKingdom) {
   try {
     const user = await User.findOne({ userId });
@@ -1307,13 +1387,23 @@ async function handleTitleRequest(userId, title, interaction, isLostKingdom) {
 
       if (!isProcessing[title]) processQueue(title);
 
-      const isTitleTimerRunning = timers[title] != null;
-
+      // const isTitleTimerRunning = timers[title] != null;
+      console.log("is lost kingdom", isLostKingdom);
       const embed = {
         color: 0x87cefa,
         title: `${title} Request Added`,
-        description: `**Position in Queue**: ${queuePosition}\n📌 **Coordinates**: ${user.x}, ${user.y}\n⌛ **Custom Duration**: ${customDuration} sec`,
+        footer: {
+          text: `📍 ${
+            isLostKingdom ? process.env.LOSTKINGDOM : process.env.KINGDOM
+          } ${user.x} ${user.y}    ⌛ ${customDuration} sec`,
+        },
       };
+
+      if (queuePosition > 1) {
+        embed.description =
+          `**Position in Queue**: ${queuePosition}\n` + embed.description;
+      }
+
       await interaction.reply({ embeds: [embed] });
     } else {
       if (!interaction.replied) {
