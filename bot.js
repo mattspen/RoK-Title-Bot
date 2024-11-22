@@ -780,7 +780,7 @@ async function processGlobalAdbQueue() {
     }
 
     const notificationMessage = await interaction.channel.send({
-      content: ` <@${userId}>, You're up for "${title}"! React with ✅ when done, you have ${remainingTime} sec.`,
+      content: `<@${userId}>, You're up for "${title}"! React with ✅ when done, you have ${remainingTime} sec.`,
     });
 
     await notificationMessage.react("✅");
