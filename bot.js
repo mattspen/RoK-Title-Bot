@@ -506,7 +506,7 @@ client.on("messageCreate", async (message) => {
     }
 
     // Check for 'lk' in the args and set isLostKingdom flag
-    if (args.includes("lk")) {
+    if (args.includes("lk") || args.includes("LK") || args.includes("Lk")) {
       isLostKingdom = true;
     }
 
@@ -640,9 +640,18 @@ client.on("messageCreate", async (message) => {
     await handleTitleRequest(userId, title, message, isLostKingdom);
   } catch (error) {
     console.error("Error processing message:", error);
-    await message.reply(
-      "> There was an error processing your request. Please try again."
-    );
+    const embed = {
+      color: 0xff0000,
+      title: "⚠️ Error",
+      description: "There was an error processing your request. Please try again.",
+      footer: {
+        text: `Requested by ${message.author.username}`,
+        icon_url: message.author.displayAvatarURL(),
+      },
+      timestamp: new Date(),
+    };
+
+    await message.reply({ embeds: [embed] });
   }
 });
 
@@ -725,7 +734,7 @@ setInterval(() => {
 let adbQueue = [];
 let isAdbRunningGlobal = false;
 
-async function processGlobalAdbQueue() {
+async function processGlobalAdbQueue(isLostKingdom) {
   if (isAdbRunningGlobal || adbQueue.length === 0) {
     console.log("Global ADB queue is empty or ADB is already running.");
     return;
@@ -744,14 +753,13 @@ async function processGlobalAdbQueue() {
 
     const kingdom = user.kingdom;
 
-    console.log(`Processing ADB command for title: ${title}, user: ${userId}`);
-
     const adbResult = await runAdbCommand(
       userId,
       x,
       y,
       title,
       kingdom,
+      isLostKingdom,
       interaction,
       message
     );
@@ -882,7 +890,7 @@ async function processGlobalAdbQueue() {
   }
 }
 
-async function processQueue(title) {
+async function processQueue(title, isLostKingdom) {
   if (isProcessing[title] || queues[title].length === 0) {
     return;
   }
@@ -896,7 +904,7 @@ async function processQueue(title) {
   );
 
   adbQueue.push({ title, request });
-  processGlobalAdbQueue();
+  processGlobalAdbQueue(isLostKingdom);
 }
 
 function startTimer(collector, remainingTime, title, userId) {
@@ -945,15 +953,7 @@ function execAsync(command, retries = 3) {
 
 async function runAdbCommand(userId, x, y, title, kingdom, isLostKingdom) {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
-  console.log(isLostKingdom.content);
-  if (
-    typeof isLostKingdom.content === "string" &&
-    isLostKingdom.content.toLowerCase().includes("lk")
-  ) {
-    isLostKingdom = true; // Mark as true if 'lk' is found
-  } else {
-    isLostKingdom = false; // Otherwise, mark as false
-  }
+
 
   const isCurrentlyInLostKingdom = await new Promise((resolve) => {
     exec(
@@ -1378,17 +1378,15 @@ async function handleTitleRequest(userId, title, interaction, isLostKingdom) {
         kingdom: userKingdom,
         x: user.x,
         y: user.y,
-        isLostKingdom, // Pass the flag into the request
       };
 
       queues[title].push(request);
       const queuePosition = queues[title].length;
       lastUserRequest[userId] = title;
 
-      if (!isProcessing[title]) processQueue(title);
+      if (!isProcessing[title]) processQueue(title, isLostKingdom);
 
       // const isTitleTimerRunning = timers[title] != null;
-      console.log("is lost kingdom", isLostKingdom);
       const embed = {
         color: 0x87cefa,
         title: `${title} Request Added`,
@@ -1401,7 +1399,7 @@ async function handleTitleRequest(userId, title, interaction, isLostKingdom) {
 
       if (queuePosition > 1) {
         embed.description =
-          `**Position in Queue**: ${queuePosition}\n` + embed.description;
+          `**Position in Queue**: ${queuePosition}\n`
       }
 
       await interaction.reply({ embeds: [embed] });
