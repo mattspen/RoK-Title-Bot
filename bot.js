@@ -1426,3 +1426,30 @@ async function handleTitleRequest(userId, title, interaction, isLostKingdom) {
     }
   }
 }
+
+// import WebSocket from 'ws'; // Install using: npm install ws
+
+// const wss = new WebSocket.Server({ port: 8085 });
+
+// wss.on('connection', (ws) => {
+//   console.log("WebSocket connection established.");
+
+//   ws.on('message', async (message) => {
+//     try {
+//       const data = JSON.parse(message);
+
+//       const { title, x, y, kingdom, isLostKingdom } = data;
+
+//       console.log(Received request from Python: ${JSON.stringify(data)});
+
+//       // Call handleTitleRequest directly with the parsed data
+//       await handleTitleRequest(null, title, null, isLostKingdom, x, y);
+//     } catch (err) {
+//       console.error("Error handling WebSocket message:", err);
+//     }
+//   });
+
+//   ws.on('close', () => {
+//     console.log("WebSocket connection closed.");
+//   });
+// });
