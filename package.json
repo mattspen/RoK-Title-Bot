@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "start:3299": "cross-env ENV_FILE=.3299.env node bot.js",
-    "start:3311": "cross-env ENV_FILE=.3311.env node bot.js",
+    "start:3052": "cross-env ENV_FILE=.3052.env node bot.js",
     "register-commands": "node registerCommands.js"
   },
   "dependencies": {

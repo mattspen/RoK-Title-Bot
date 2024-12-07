@@ -573,9 +573,18 @@ client.on("messageCreate", async (message) => {
 
       user = new User({ userId, kingdom, x, y });
       await user.save();
-      await message.reply(
-        `> You have been registered with coordinates (${x}, ${y}) in Kingdom ${kingdom}.`
-      );
+      const embed = {
+        color: 0xadd8e6,
+        title: "📍 Registration Successful",
+        description: `You have been registered with coordinates **(${x}, ${y})** in Kingdom **${kingdom}**.`,
+        timestamp: new Date(),
+        footer: {
+          text: `Requested by ${message.author.username}`,
+          icon_url: message.author.displayAvatarURL(),
+        },
+      };
+
+      await message.reply({ embeds: [embed] });
     } else {
       // Update existing user with new coordinates
       if (x !== null && y !== null) {
