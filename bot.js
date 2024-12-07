@@ -506,7 +506,7 @@ client.on("messageCreate", async (message) => {
     }
 
     // Check for 'lk' in the args and set isLostKingdom flag
-    if (args.includes("lk") || args.includes("LK") || args.includes("Lk")) {
+    if (args.includes("lk") || args.includes("LK") || args.includes("Lk") || args.includes("C12463")) {
       isLostKingdom = true;
     }
 
@@ -734,7 +734,7 @@ setInterval(() => {
 let adbQueue = [];
 let isAdbRunningGlobal = false;
 
-async function processGlobalAdbQueue(isLostKingdom) {
+async function processGlobalAdbQueue() {
   if (isAdbRunningGlobal || adbQueue.length === 0) {
     console.log("Global ADB queue is empty or ADB is already running.");
     return;
@@ -744,8 +744,8 @@ async function processGlobalAdbQueue(isLostKingdom) {
   const { title, request } = adbQueue.shift();
 
   try {
-    const { userId, x, y, interaction, message } = request;
-
+    const { userId, x, y, interaction, message, isLostKingdom } = request;
+    
     const user = await User.findOne({ userId });
     if (!user) {
       throw new Error("User not found");
@@ -758,7 +758,6 @@ async function processGlobalAdbQueue(isLostKingdom) {
       x,
       y,
       title,
-      kingdom,
       isLostKingdom,
       interaction,
       message
@@ -788,7 +787,7 @@ async function processGlobalAdbQueue(isLostKingdom) {
     }
 
     const notificationMessage = await interaction.channel.send({
-      content: `<@${userId}>, You're up for "${title}"! React with ✅ when done, you have ${remainingTime} sec.`,
+      content: `<@${userId}>, ${title.toLowerCase()} on you! React with ✅ when done, you have ${remainingTime} sec.`,
     });
 
     await notificationMessage.react("✅");
@@ -890,21 +889,16 @@ async function processGlobalAdbQueue(isLostKingdom) {
   }
 }
 
-async function processQueue(title, isLostKingdom) {
+async function processQueue(title) {
   if (isProcessing[title] || queues[title].length === 0) {
     return;
   }
 
   isProcessing[title] = true;
   const request = queues[title].shift();
-  const { userId } = request;
-
-  console.log(
-    `Adding ${title} request for user ${userId} to the global ADB queue`
-  );
 
   adbQueue.push({ title, request });
-  processGlobalAdbQueue(isLostKingdom);
+  processGlobalAdbQueue();
 }
 
 function startTimer(collector, remainingTime, title, userId) {
@@ -951,9 +945,8 @@ function execAsync(command, retries = 3) {
   });
 }
 
-async function runAdbCommand(userId, x, y, title, kingdom, isLostKingdom) {
+async function runAdbCommand(userId, x, y, title, isLostKingdom) {  
   const deviceId = process.env.EMULATOR_DEVICE_ID;
-
 
   const isCurrentlyInLostKingdom = await new Promise((resolve) => {
     exec(
@@ -1029,10 +1022,6 @@ async function runAdbCommand(userId, x, y, title, kingdom, isLostKingdom) {
   if (!stateCheckResult.success) {
     return stateCheckResult;
   }
-
-  // if (!isAdbRunning[kingdom]?.[title]) {
-  //   await new Promise((resolve) => setTimeout(resolve, 3000));
-  // }
 
   const titleCommands = {
     Justice: [
@@ -1378,13 +1367,14 @@ async function handleTitleRequest(userId, title, interaction, isLostKingdom) {
         kingdom: userKingdom,
         x: user.x,
         y: user.y,
+        isLostKingdom
       };
 
       queues[title].push(request);
       const queuePosition = queues[title].length;
       lastUserRequest[userId] = title;
 
-      if (!isProcessing[title]) processQueue(title, isLostKingdom);
+      if (!isProcessing[title]) processQueue(title);
 
       // const isTitleTimerRunning = timers[title] != null;
       const embed = {
