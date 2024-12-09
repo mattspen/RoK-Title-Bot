@@ -5,6 +5,7 @@ import User from "./models/User.js";
 import { exec } from "child_process";
 import TitleDuration from "./models/setTimer.js";
 import LockedTitle from "./models/locktitle.js";
+import WebSocket from "ws";
 import {
   isAdbRunning,
   isProcessing,
@@ -15,7 +16,6 @@ import {
 } from "./helpers/vars.js";
 import { fetchCustomDurationFromDatabase } from "./helpers/fetchCustomDurationFromDatabase.js";
 import schedule from "node-schedule";
-import TitleRequestLog from "./models/TitleRequestLog.js";
 
 dotenv.config({
   path: process.env.ENV_FILE || ".env",
@@ -78,6 +78,7 @@ client.on("messageCreate", async (message) => {
       Scientist: ["s", "scientist", "sci", "S"],
     };
     const validTitles = Object.keys(titleMappings);
+
     if (args[0].toLowerCase() === "locktitle") {
       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
         id.trim()
@@ -116,7 +117,7 @@ client.on("messageCreate", async (message) => {
 
       const lockedTitle = await LockedTitle.findOneAndUpdate(
         { title: normalizedTitle, kingdom },
-        { isLocked: true, lockedBy: userId, lockedAt: new Date() }, // Set lockedBy and lockedAt
+        { isLocked: true, lockedBy: userId, lockedAt: new Date() },
         { upsert: true, new: true }
       );
 
@@ -263,101 +264,6 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    if (args[0].toLowerCase() === "registeruser") {
-      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-        id.trim()
-      );
-      const userId = message.author.id;
-
-      if (!superUserIds.includes(userId)) {
-        await message.reply(
-          "> You do not have permission to use this command."
-        );
-        return;
-      }
-
-      if (args.length < 4) {
-        await message.reply(
-          "> Invalid command format. Please use: `registeruser <discordid> <x> <y>`."
-        );
-        return;
-      }
-
-      const targetUserId = args[1];
-      const isUsernamePresent = isNaN(args[2]);
-      const x = parseInt(isUsernamePresent ? args[3] : args[2], 10);
-      const y = parseInt(isUsernamePresent ? args[4] : args[3], 10);
-      const kingdom = parseInt(process.env.KINGDOM, 10);
-
-      if (isNaN(x) || isNaN(y)) {
-        await message.reply(
-          "> Invalid coordinates. Please provide valid integers for x and y."
-        );
-        return;
-      }
-
-      const user = await User.findOne({ userId: targetUserId });
-
-      if (user) {
-        user.kingdom = kingdom;
-        user.x = x;
-        user.y = y;
-        await user.save();
-        await message.reply(
-          `> User with Discord ID ${targetUserId} has been updated: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
-        );
-      } else {
-        const newUser = new User({ userId: targetUserId, kingdom, x, y });
-        await newUser.save();
-        await message.reply(
-          `> User with Discord ID ${targetUserId} has been registered: Kingdom: "${kingdom}", Coordinates: (${x}, ${y})!`
-        );
-      }
-      return;
-    }
-
-    if (args[0].toLowerCase() === "logs") {
-      const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
-        id.trim()
-      );
-      const userId = message.author.id;
-
-      if (!superUserIds.includes(userId)) {
-        await message.reply("> You do not have permission to view the logs.");
-        return;
-      }
-
-      const requestingUser = await User.findOne({ userId });
-      if (!requestingUser) {
-        await message.reply("> User data not found.");
-        return;
-      }
-
-      const { kingdom } = requestingUser;
-      const successCount = await TitleRequestLog.countDocuments({
-        status: "successful",
-        kingdom,
-      });
-      const failureCount = await TitleRequestLog.countDocuments({
-        status: "unsuccessful",
-        kingdom,
-      });
-
-      const embed = {
-        color: 0x3498db, // Light blue color
-        title: `📜 Title Request Logs for Kingdom ${kingdom}`,
-        description: `**✅ Successes:** ${successCount}    **❌ Failures:** ${failureCount}`,
-        footer: {
-          text: `Requested by ${message.author.username}`,
-          icon_url: message.author.displayAvatarURL(),
-        },
-        timestamp: new Date(),
-      };
-
-      await message.reply({ embeds: [embed] });
-      return;
-    }
-
     if (args[0].toLowerCase() === "settimer") {
       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
         id.trim()
@@ -497,7 +403,6 @@ client.on("messageCreate", async (message) => {
     let title = null;
     let isLostKingdom = false;
 
-    // Check if title exists in the command
     for (const [key, variations] of Object.entries(titleMappings)) {
       if (variations.includes(command)) {
         title = key;
@@ -505,21 +410,32 @@ client.on("messageCreate", async (message) => {
       }
     }
 
-    // Check for 'lk' in the args and set isLostKingdom flag
-    if (args.includes("lk") || args.includes("LK") || args.includes("Lk") || args.includes("C12463")) {
+    if (
+      args.includes("lk") ||
+      args.includes("LK") ||
+      args.includes("Lk") ||
+      args.includes(process.env.LOSTKINGDOM)
+    ) {
       isLostKingdom = true;
     }
 
-    // If no valid title is found, exit
     if (!title) return;
 
     const userId = message.author.id;
 
-    // Check if coordinates are provided
     if (lastUserRequest[userId] === title) {
-      await message.reply(
-        `> You cannot request the title "${title}" twice in a row. Please choose a different title.`
-      );
+      const embed = {
+        color: 0xff0000,
+        title: "⚠️ Title Request Error",
+        description: `You cannot request the title "${title}" twice in a row. Please choose a different title.`,
+        footer: {
+          text: `Requested by ${message.author.username}`,
+          icon_url: message.author.displayAvatarURL(),
+        },
+        timestamp: new Date(),
+      };
+
+      await message.reply({ embeds: [embed] });
       return;
     }
 
@@ -532,9 +448,19 @@ client.on("messageCreate", async (message) => {
     const timeSinceLastRequest = now - lastRequestTime;
 
     if (timeSinceLastRequest < 4000) {
-      await message.reply(
-        "You are sending requests too quickly. Please wait a few seconds before trying again."
-      );
+      const embed = {
+        color: 0xff0000,
+        title: "⚠️ Slow Down",
+        description:
+          "You are sending requests too quickly. Please wait a few seconds before trying again.",
+        footer: {
+          text: `Requested by ${message.author.username}`,
+          icon_url: message.author.displayAvatarURL(),
+        },
+        timestamp: new Date(),
+      };
+
+      await message.reply({ embeds: [embed] });
       return;
     }
 
@@ -549,24 +475,30 @@ client.on("messageCreate", async (message) => {
       x = parseInt(isUsernamePresent ? args[2] : args[1], 10);
       y = parseInt(isUsernamePresent ? args[3] : args[2], 10);
 
-      // If coordinates are invalid, prompt the user for valid input
       if (isNaN(x) || isNaN(y)) {
-        await message.reply(
-          "> Invalid coordinates. Please enter valid numbers for x and y."
-        );
+        const embed = {
+          color: 0xff0000,
+          title: "⚠️ Invalid Coordinates",
+          description: "Please enter valid numbers for x and y.",
+          footer: {
+            text: `Requested by ${message.author.username}`,
+            icon_url: message.author.displayAvatarURL(),
+          },
+          timestamp: new Date(),
+        };
+
+        await message.reply({ embeds: [embed] });
         return;
       }
     }
 
-    // Check if the user is already registered
     let user = await User.findOne({ userId });
 
     if (!user) {
-      // If not registered, create a new user entry
       const kingdom = parseInt(process.env.KINGDOM, 10);
       if (x === null || y === null) {
         await message.reply(
-          "> Coordinates are required for first-time registration. e.g: architect lk 603 449"
+          "Coordinates are required for first-time registration. e.g: architect lk 603 449"
         );
         return;
       }
@@ -586,7 +518,6 @@ client.on("messageCreate", async (message) => {
 
       await message.reply({ embeds: [embed] });
     } else {
-      // Update existing user with new coordinates
       if (x !== null && y !== null) {
         user.x = x;
         user.y = y;
@@ -594,65 +525,14 @@ client.on("messageCreate", async (message) => {
       }
     }
 
-    // Check if the requested title is locked
-    const lockedTitleDoc = await LockedTitle.findOne({
-      title,
-      kingdom: process.env.KINGDOM,
-      isLocked: true,
-    });
-
-    if (lockedTitleDoc) {
-      const lockedByUser = lockedTitleDoc.lockedBy
-        ? await message.client.users
-            .fetch(lockedTitleDoc.lockedBy)
-            .catch(() => null)
-        : null;
-      const lockedBy = lockedByUser ? lockedByUser.tag : "Unknown User";
-      const lockedAt = lockedTitleDoc.lockedAt
-        ? lockedTitleDoc.lockedAt.toLocaleString()
-        : "Unknown Time";
-
-      const embed = {
-        color: 0xff0000,
-        title: `🔒 Title "${title}" is Locked`,
-        description: `The title "${title}" is currently locked and cannot be requested.`,
-        fields: [
-          { name: "👤 Locked By", value: lockedBy, inline: true },
-          { name: "⏰ Locked At", value: lockedAt, inline: true },
-          {
-            name: "🔄 Action",
-            value: "Please choose a different title or try again later.",
-            inline: false,
-          },
-        ],
-        footer: {
-          text: `Requested by ${message.author.username}`,
-          icon_url: message.author.displayAvatarURL(),
-        },
-        timestamp: new Date(),
-      };
-
-      await message.reply({ embeds: [embed] });
-      return;
-    }
-
-    // Proceed with title request processing
-    const titleRequestLog = new TitleRequestLog({
-      userId,
-      title,
-      username: user.username || "nil",
-      kingdom: user.kingdom,
-      status: "pending",
-    });
-
-    await titleRequestLog.save();
     await handleTitleRequest(userId, title, message, isLostKingdom);
   } catch (error) {
     console.error("Error processing message:", error);
     const embed = {
       color: 0xff0000,
       title: "⚠️ Error",
-      description: "There was an error processing your request. Please try again.",
+      description:
+        "There was an error processing your request. Please try again.",
       footer: {
         text: `Requested by ${message.author.username}`,
         icon_url: message.author.displayAvatarURL(),
@@ -738,7 +618,7 @@ setInterval(() => {
   } else {
     console.log("ADB functions are currently running. Skipping runCheckState.");
   }
-}, 10000);
+}, 20000);
 
 let adbQueue = [];
 let isAdbRunningGlobal = false;
@@ -752,38 +632,29 @@ async function processGlobalAdbQueue() {
   isAdbRunningGlobal = true;
   const { title, request } = adbQueue.shift();
 
+  let user = null;
+
   try {
-    const { userId, x, y, interaction, message, isLostKingdom } = request;
-    
-    const user = await User.findOne({ userId });
-    if (!user) {
+    const { userId, x, y, interaction, isLostKingdom } = request;
+
+    user = userId ? await User.findOne({ userId }) : null;
+    if (userId && !user) {
       throw new Error("User not found");
     }
 
-    const kingdom = user.kingdom;
+    const kingdom = user ? user.kingdom : parseInt(process.env.KINGDOM, 10);
 
     const adbResult = await runAdbCommand(
-      userId,
       x,
       y,
       title,
       isLostKingdom,
-      interaction,
-      message
+      interaction
     );
 
     if (!adbResult.success) {
       throw new Error("Title button not found in the ADB command.");
     }
-
-    await TitleRequestLog.create({
-      userId,
-      username: "nil",
-      title,
-      kingdom,
-      status: "successful",
-      timestamp: new Date(),
-    });
 
     let remainingTime = titleDurations[title];
     const customDuration = await fetchCustomDurationFromDatabase(
@@ -795,70 +666,87 @@ async function processGlobalAdbQueue() {
       remainingTime = customDuration;
     }
 
-    const notificationMessage = await interaction.channel.send({
-      content: `<@${userId}>, ${title.toLowerCase()} on you! React with ✅ when done, you have ${remainingTime} sec.`,
-    });
+    if (interaction) {
+      // Discord request: Send notification message and set up reaction collector
+      const notificationMessage = await interaction.channel.send({
+        content: `<@${userId}>, ${title.toLowerCase()} on you! React with ✅ when done, you have ${remainingTime} sec.`,
+      });
 
-    await notificationMessage.react("✅");
+      await notificationMessage.react("✅");
 
-    const filter = (reaction, user) =>
-      reaction.emoji.name === "✅" && user.id === userId;
-    const collector = notificationMessage.createReactionCollector({
-      filter,
-      time: 300 * 1000,
-    });
+      const filter = (reaction, user) =>
+        reaction.emoji.name === "✅" && user.id === userId;
+      const collector = notificationMessage.createReactionCollector({
+        filter,
+        time: customDuration ? customDuration * 1000 : remainingTime * 1000,
+      });
 
-    if (timers[title]) {
-      clearInterval(timers[title]);
-      console.log(
-        `Existing timer for ${title} cleared before starting a new one.`
-      );
-    }
-
-    collector.on("collect", () => {
-      console.log(
-        `✅ Reaction collected for user ${userId}, stopping timer for ${title}.`
-      );
-      remainingTime = 0;
-      lastUserRequest[userId] = null;
-      clearInterval(timers[title]);
-      delete timers[title];
-      collector.stop();
-    });
-
-    collector.on("end", (collected) => {
-      clearInterval(timers[title]);
-      delete timers[title];
-
-      const responseMessage =
-        collected.size === 0
-          ? `<@${userId}>, Time's up! ⏰`
-          : `Done reaction collected. Moving to the next request.`;
-
-      if (interaction) {
-        interaction.channel.send(responseMessage);
+      if (timers[title]) {
+        clearInterval(timers[title]);
+        console.log(
+          `Existing timer for ${title} cleared before starting a new one.`
+        );
       }
 
-      setTimeout(() => {
+      collector.on("collect", () => {
+        console.log(
+          `✅ Reaction collected for user ${userId}, stopping timer for ${title}.`
+        );
+        remainingTime = 0;
         lastUserRequest[userId] = null;
+        clearInterval(timers[title]);
+        delete timers[title];
+        collector.stop();
+      });
+
+      collector.on("end", (collected) => {
+        clearInterval(timers[title]);
+        delete timers[title];
+
+        const responseMessage =
+          collected.size === 0
+            ? `<@${userId}>, Time's up! ⏰`
+            : `Done reaction collected. Moving to the next request.`;
+
+        interaction.channel
+          .send(responseMessage)
+          .catch((err) => console.error("Failed to send response:", err));
+
+        setTimeout(() => {
+          lastUserRequest[userId] = null;
+          isProcessing[title] = false;
+          isAdbRunning[title] = false;
+          processQueue(title);
+        }, 10000);
+      });
+
+      timers[title] = startTimer(collector, remainingTime, title, userId);
+    } else {
+      console.log(
+        `WebSocket request for title "${title}" processed. Timer will elapse in ${remainingTime} seconds.`
+      );
+
+      timers[title] = setTimeout(() => {
+        console.log(
+          `Timer for title "${title}" elapsed. Moving to the next request.`
+        );
         isProcessing[title] = false;
         isAdbRunning[title] = false;
         processQueue(title);
-      }, 10000);
-    });
-
-    timers[title] = startTimer(collector, remainingTime, title, userId);
+      }, remainingTime * 1000);
+    }
   } catch (error) {
+
     const deviceId = process.env.EMULATOR_DEVICE_ID;
     const screenshotPath = `./temp/screenshot_city_not_found_${deviceId}.png`;
     console.log(error);
 
-    const { userId } = request;
-    let errorMessage = `<@${userId}>, ran into an error while processing your request for ${title}.`;
+    const errorMessage =
+      error.message === "Title button not found in the ADB command."
+        ? `Please check your city coordinates. To update them, provide the title and coordinates. For example: \`duke 123 456\``
+        : `Ran into an error while processing the request for ${title}.`;
 
-    if (error.message === "Title button not found in the ADB command.") {
-      errorMessage = `<@${userId}>, please check your city coordinates. To update them, type the title you need followed by your coordinates. For example: \`duke 123 456\``;
-
+    if (request?.interaction) {
       const embed = {
         color: 0xff0000,
         title: "Error: Title Button Not Found",
@@ -868,27 +756,17 @@ async function processGlobalAdbQueue() {
         },
       };
 
-      if (request.interaction) {
-        await request.interaction.channel.send({
+      request.interaction.channel
+        .send({
           embeds: [embed],
           files: [{ attachment: screenshotPath }],
-        });
-      }
+        })
+        .catch((err) => console.error("Failed to send error embed:", err));
+    } else {
+      console.log(errorMessage);
     }
 
-    const user = await User.findOne({ userId });
-    const username = user ? user.username : "Unknown User";
-    const kingdom = user ? user.kingdom : "Unknown Kingdom";
-    await TitleRequestLog.create({
-      userId,
-      username,
-      title,
-      kingdom,
-      status: "unsuccessful",
-      timestamp: new Date(),
-    });
-
-    lastUserRequest[request.userId] = null;
+    lastUserRequest[request?.userId] = null;
     isProcessing[title] = false;
     isAdbRunning[title] = false;
     setTimeout(() => processQueue(title), 10000);
@@ -954,7 +832,7 @@ function execAsync(command, retries = 3) {
   });
 }
 
-async function runAdbCommand(userId, x, y, title, isLostKingdom) {  
+async function runAdbCommand(x, y, title, isLostKingdom, interaction) {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
 
   const isCurrentlyInLostKingdom = await new Promise((resolve) => {
@@ -1251,7 +1129,6 @@ async function runAdbCommand(userId, x, y, title, isLostKingdom) {
 
     return { success: true, coordinates: titleCheckResult.coordinates };
   } catch (error) {
-    console.error(`Error processing commands for ${userId}: ${error.message}`);
     return { success: false, error: error.message };
   }
 }
@@ -1325,13 +1202,28 @@ schedule.scheduleJob("0 1 * * *", () => {
   }
 });
 
-async function handleTitleRequest(userId, title, interaction, isLostKingdom) {
+async function handleTitleRequest(
+  userId,
+  title,
+  interaction,
+  isLostKingdom,
+  x = null,
+  y = null,
+  kingdom = null
+) {
   try {
-    const user = await User.findOne({ userId });
+    if (!interaction) {
+      console.log("Processing a WebSocket request...");
+    }
 
-    if (user && user.kingdom && user.x != null && user.y != null) {
-      const userKingdom = user.kingdom;
+    // Find user if `userId` is provided, otherwise use passed coordinates and kingdom
+    const user = userId ? await User.findOne({ userId }) : null;
 
+    const userKingdom = user ? user.kingdom : kingdom;
+    const userX = user ? user.x : x;
+    const userY = user ? user.y : y;
+
+    if (userKingdom && userX != null && userY != null) {
       const lockedTitle = await LockedTitle.findOne({
         title,
         kingdom: userKingdom,
@@ -1342,27 +1234,30 @@ async function handleTitleRequest(userId, title, interaction, isLostKingdom) {
         0;
 
       if (lockedTitle && lockedTitle.isLocked) {
-        // Prepare lockedBy and lockedAt information if available
-        const lockedByUser = lockedTitle.lockedBy
-          ? await interaction.client.users
-              .fetch(lockedTitle.lockedBy)
-              .catch(() => null)
-          : null;
-        const lockedBy = lockedByUser ? lockedByUser.tag : "Unknown User";
-        const lockedAt = lockedTitle.lockedAt
-          ? lockedTitle.lockedAt.toLocaleString()
-          : "Unknown Time";
+        if (interaction) {
+          const lockedByUser = lockedTitle.lockedBy
+            ? await interaction.client.users
+                .fetch(lockedTitle.lockedBy)
+                .catch(() => null)
+            : null;
+          const lockedBy = lockedByUser ? lockedByUser.tag : "Unknown User";
+          const lockedAt = lockedTitle.lockedAt
+            ? lockedTitle.lockedAt.toLocaleString()
+            : "Unknown Time";
 
-        const embed = {
-          color: 0x87cefa,
-          title: `🔒 The title "${title}" is currently locked for your kingdom.`,
-          description: "Please choose a different title.",
-          fields: [
-            { name: "👤 Locked By", value: lockedBy, inline: true },
-            { name: "⏰ Locked At", value: lockedAt, inline: true },
-          ],
-        };
-        await interaction.reply({ embeds: [embed] });
+          const embed = {
+            color: 0x87cefa,
+            title: `🔒 The title "${title}" is currently locked for your kingdom.`,
+            description: "Please choose a different title.",
+            fields: [
+              { name: "👤 Locked By", value: lockedBy, inline: true },
+              { name: "⏰ Locked At", value: lockedAt, inline: true },
+            ],
+          };
+          await interaction.reply({ embeds: [embed] });
+        } else {
+          console.log(`Title "${title}" is locked for kingdom ${userKingdom}.`);
+        }
         return;
       }
 
@@ -1374,36 +1269,40 @@ async function handleTitleRequest(userId, title, interaction, isLostKingdom) {
         userId,
         title,
         kingdom: userKingdom,
-        x: user.x,
-        y: user.y,
-        isLostKingdom
+        x: userX,
+        y: userY,
+        isLostKingdom,
       };
 
       queues[title].push(request);
       const queuePosition = queues[title].length;
-      lastUserRequest[userId] = title;
+      if (userId) lastUserRequest[userId] = title;
 
       if (!isProcessing[title]) processQueue(title);
 
-      // const isTitleTimerRunning = timers[title] != null;
-      const embed = {
-        color: 0x87cefa,
-        title: `${title} Request Added`,
-        footer: {
-          text: `📍 ${
-            isLostKingdom ? process.env.LOSTKINGDOM : process.env.KINGDOM
-          } ${user.x} ${user.y}    ⌛ ${customDuration} sec`,
-        },
-      };
+      if (interaction) {
+        const embed = {
+          color: 0x87cefa,
+          title: `${title} Request Added`,
+          footer: {
+            text: `📍 ${
+              isLostKingdom ? process.env.LOSTKINGDOM : process.env.KINGDOM
+            } ${userX} ${userY}    ⌛ ${customDuration} sec`,
+          },
+        };
 
-      if (queuePosition > 1) {
-        embed.description =
-          `**Position in Queue**: ${queuePosition}\n`
+        if (queuePosition >= 1) {
+          embed.description = `**Position in Queue**: ${queuePosition}\n`;
+        }
+
+        await interaction.reply({ embeds: [embed] });
+      } else {
+        console.log(
+          `Request added: Title "${title}" for kingdom ${userKingdom} at coordinates (${userX}, ${userY}).`
+        );
       }
-
-      await interaction.reply({ embeds: [embed] });
     } else {
-      if (!interaction.replied) {
+      if (interaction) {
         const embed = {
           color: 0x87cefa,
           title: "❗ Unregistered Coordinates",
@@ -1411,11 +1310,13 @@ async function handleTitleRequest(userId, title, interaction, isLostKingdom) {
             "You haven't registered your coordinates. Please type the following: `register [x] [y]`.",
         };
         await interaction.reply({ embeds: [embed] });
+      } else {
+        console.log("Request failed: Missing coordinates or kingdom.");
       }
     }
   } catch (error) {
     console.error("An unexpected error occurred:", error);
-    if (!interaction.replied) {
+    if (interaction && !interaction.replied) {
       const embed = {
         color: 0x87cefa,
         title: "⚠️ Unexpected Error",
@@ -1426,29 +1327,34 @@ async function handleTitleRequest(userId, title, interaction, isLostKingdom) {
   }
 }
 
-// import WebSocket from 'ws'; // Install using: npm install ws
+// Set up WebSocket server
+const kingdomEnv = parseInt(process.env.KINGDOM, 10);
 
-// const wss = new WebSocket.Server({ port: 8085 });
+const wss = new WebSocket.Server({ port: kingdomEnv });
 
-// wss.on('connection', (ws) => {
-//   console.log("WebSocket connection established.");
+wss.on("connection", (ws) => {
+  console.log("WebSocket connection established.");
 
-//   ws.on('message', async (message) => {
-//     try {
-//       const data = JSON.parse(message);
+  ws.on("message", async (message) => {
+    try {
+      const data = JSON.parse(message);
 
-//       const { title, x, y, kingdom, isLostKingdom } = data;
+      const { title, x, y, isLostKingdom } = data;
 
-//       console.log(Received request from Python: ${JSON.stringify(data)});
+      console.log(`Received request from WebSocket: ${JSON.stringify(data)}`);
 
-//       // Call handleTitleRequest directly with the parsed data
-//       await handleTitleRequest(null, title, null, isLostKingdom, x, y);
-//     } catch (err) {
-//       console.error("Error handling WebSocket message:", err);
-//     }
-//   });
+      await handleTitleRequest(null, title, null, isLostKingdom, x, y, kingdomEnv);
+    
+      ws.send(JSON.stringify({ success: true }));
+    } catch (err) {
+      console.error("Error handling WebSocket message:", err);
 
-//   ws.on('close', () => {
-//     console.log("WebSocket connection closed.");
-//   });
-// });
+      // Send error acknowledgment back to the client
+      ws.send(JSON.stringify({ success: false, error: err.message }));
+    }
+  });
+
+  ws.on("close", () => {
+    console.log("WebSocket connection closed.");
+  });
+});

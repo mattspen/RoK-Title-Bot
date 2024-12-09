@@ -24,7 +24,7 @@
     "pngjs": "^7.0.0",
     "tesseract.js": "^5.1.1",
     "tweetnacl": "^1.0.0",
-    "ws": "^8.18.0"
+    "ws": "github:websockets/ws"
   },
   "devDependencies": {
     "eslint": "^9.11.0"

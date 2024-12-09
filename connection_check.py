@@ -14,7 +14,7 @@ def clean_ocr_output(text):
     cleaned_text = ''.join(c for c in text if c.isalnum() or c.isspace() or c in ".,-")
     return cleaned_text
 
-def is_text_similar(extracted_text, target_texts, threshold=0.4):  # Reduced threshold to 0.4
+def is_text_similar(extracted_text, target_texts, threshold=0.4):
     for target_text in target_texts:
         similarity = difflib.SequenceMatcher(None, extracted_text.lower(), target_text.lower()).ratio()
         print(f"Checking similarity with '{target_text}': {similarity}")
