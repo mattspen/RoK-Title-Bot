@@ -16,6 +16,7 @@ import {
 } from "./helpers/vars.js";
 import { fetchCustomDurationFromDatabase } from "./helpers/fetchCustomDurationFromDatabase.js";
 import schedule from "node-schedule";
+import { refreshApp } from "./helpers/refreshApp.js";
 
 dotenv.config({
   path: process.env.ENV_FILE || ".env",
@@ -736,7 +737,6 @@ async function processGlobalAdbQueue() {
       }, remainingTime * 1000);
     }
   } catch (error) {
-
     const deviceId = process.env.EMULATOR_DEVICE_ID;
     const screenshotPath = `./temp/screenshot_city_not_found_${deviceId}.png`;
     console.log(error);
@@ -807,33 +807,23 @@ function startTimer(collector, remainingTime, title, userId) {
   return timer;
 }
 
-function execAsync(command, retries = 3) {
+function execAsync(command) {
   return new Promise((resolve, reject) => {
-    const attempt = (retryCount) => {
-      exec(command, (error, stdout, stderr) => {
-        if (error) {
-          if (error.code === "ECONNRESET" && retryCount > 0) {
-            console.warn(
-              `ECONNRESET error occurred. Retrying... (${
-                retries - retryCount + 1
-              }/${retries})`
-            );
-            return attempt(retryCount - 1);
-          }
-          return reject(error);
-        }
-        if (stderr) {
-          console.error(`stderr: ${stderr}`);
-        }
-        resolve(stdout);
-      });
-    };
-    attempt(retries);
+    exec(command, (error, stdout, stderr) => {
+      if (error) {
+        return reject(error);
+      }
+      if (stderr) {
+        console.error(`stderr: ${stderr}`);
+      }
+      resolve(stdout);
+    });
   });
 }
 
-async function runAdbCommand(x, y, title, isLostKingdom, interaction) {
+async function runAdbCommand(x, y, title, isLostKingdom) {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
+  console.log(`Coordinates: x = ${x}, y = ${y}`);
 
   const isCurrentlyInLostKingdom = await new Promise((resolve) => {
     exec(
@@ -868,47 +858,43 @@ async function runAdbCommand(x, y, title, isLostKingdom, interaction) {
     );
   });
 
-  console.log(`Currently in Lost Kingdom: ${isCurrentlyInLostKingdom}`);
+  // const stateCheckResult = await new Promise((resolve) => {
+  //   exec(
+  //     `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
+  //     (error) => {
+  //       if (error) {
+  //         console.error(
+  //           `Error taking screenshot on ${deviceId}: ${error.message}`
+  //         );
+  //         resolve({ success: false, error: "Screenshot error" });
+  //         return;
+  //       }
+  //       exec(
+  //         `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
+  //         (error, stdout, stderr) => {
+  //           if (error) {
+  //             console.error(`Error running check_state.py: ${error.message}`);
+  //             resolve({
+  //               success: false,
+  //               error: "State check script execution error",
+  //             });
+  //             return;
+  //           }
+  //           if (stderr) {
+  //             console.error(`Stderr from check_state.py: ${stderr}`);
+  //             resolve({ success: false, error: "State check script stderr" });
+  //             return;
+  //           }
+  //           resolve({ success: true });
+  //         }
+  //       );
+  //     }
+  //   );
+  // });
 
-  console.log(`Requested Lost Kingdom: ${isLostKingdom}`);
-
-  const stateCheckResult = await new Promise((resolve) => {
-    exec(
-      `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
-      (error) => {
-        if (error) {
-          console.error(
-            `Error taking screenshot on ${deviceId}: ${error.message}`
-          );
-          resolve({ success: false, error: "Screenshot error" });
-          return;
-        }
-        exec(
-          `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
-          (error, stdout, stderr) => {
-            if (error) {
-              console.error(`Error running check_state.py: ${error.message}`);
-              resolve({
-                success: false,
-                error: "State check script execution error",
-              });
-              return;
-            }
-            if (stderr) {
-              console.error(`Stderr from check_state.py: ${stderr}`);
-              resolve({ success: false, error: "State check script stderr" });
-              return;
-            }
-            resolve({ success: true });
-          }
-        );
-      }
-    );
-  });
-
-  if (!stateCheckResult.success) {
-    return stateCheckResult;
-  }
+  // if (!stateCheckResult.success) {
+  //   return stateCheckResult;
+  // }
 
   const titleCommands = {
     Justice: [
@@ -950,13 +936,13 @@ async function runAdbCommand(x, y, title, isLostKingdom, interaction) {
       try {
         await execAsync(cityTapCommand);
 
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
         const screenshotFilename = `./temp/screenshot_${attempt}_${deviceId}.png`;
         const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
         await execAsync(screenshotCommand);
 
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
 
         const titleCheckResult = await new Promise((resolve) => {
           exec(
@@ -1002,9 +988,7 @@ async function runAdbCommand(x, y, title, isLostKingdom, interaction) {
                 return;
               }
 
-              setTimeout(() => {
-                resolve({ success: true, coordinates: result.coordinates });
-              }, 500);
+              resolve({ success: true, coordinates: result.coordinates });
             }
           );
         });
@@ -1073,7 +1057,7 @@ async function runAdbCommand(x, y, title, isLostKingdom, interaction) {
       `adb -s ${deviceId} shell input text "${process.env.KINGDOM}"` // Input kingdom text
     );
   }
-  console.log("x and y coords", x, y);
+
   // Continue with the rest of the commands for coordinate inputs and search
   initialCommands.push(
     `adb -s ${deviceId} shell input tap ${randomX3} ${randomY3}`, // X tap
@@ -1133,65 +1117,9 @@ async function runAdbCommand(x, y, title, isLostKingdom, interaction) {
   }
 }
 
-function refreshApp(channel) {
-  const deviceId = process.env.EMULATOR_DEVICE_ID;
-
-  if (!deviceId) {
-    console.error("No device ID found. Skipping refresh.");
-    return;
-  }
-
-  console.log("Refreshing Rise of Kingdoms app...");
-
-  // Send embed notification to the specified channel
-  const embed = {
-    color: 0x3498db, // Light blue color
-    title: "🔄 App Refresh",
-    description:
-      "The Rise of Kingdoms app is being refreshed. Please wait a moment.",
-    footer: {
-      text: "App refresh initiated",
-    },
-    timestamp: new Date(),
-  };
-
-  if (channel) {
-    channel
-      .send({ embeds: [embed] })
-      .catch((err) => console.error("Failed to send refresh embed:", err));
-  }
-
-  exec(
-    `adb -s ${deviceId} shell am force-stop com.lilithgame.roc.gp`,
-    (stopError) => {
-      if (stopError) {
-        console.error("Failed to stop RoK app:", stopError.message);
-        return;
-      }
-      console.log("App stopped successfully.");
-
-      // Restart the app after a brief delay
-      setTimeout(() => {
-        exec(
-          `adb -s ${deviceId} shell monkey -p com.lilithgame.roc.gp -c android.intent.category.LAUNCHER 1`,
-          (startError) => {
-            if (startError) {
-              console.error("Failed to restart RoK app:", startError.message);
-              return;
-            }
-            console.log("App restarted successfully.");
-          }
-        );
-      }, 5000); // 5-second delay before restarting
-    }
-  );
-}
-
-// Schedule the task to run at 1 AM daily
 schedule.scheduleJob("0 1 * * *", () => {
   console.log("Running scheduled RoK app refresh...");
 
-  // Specify the channel where you want to send the notification
   const channel = client.channels.cache.get(process.env.DISCORD_CHANNEL_ID);
   if (channel) {
     refreshApp(channel);
@@ -1216,7 +1144,6 @@ async function handleTitleRequest(
       console.log("Processing a WebSocket request...");
     }
 
-    // Find user if `userId` is provided, otherwise use passed coordinates and kingdom
     const user = userId ? await User.findOne({ userId }) : null;
 
     const userKingdom = user ? user.kingdom : kingdom;
@@ -1343,13 +1270,19 @@ wss.on("connection", (ws) => {
 
       console.log(`Received request from WebSocket: ${JSON.stringify(data)}`);
 
-      await handleTitleRequest(null, title, null, isLostKingdom, x, y, kingdomEnv);
-    
+      await handleTitleRequest(
+        null,
+        title,
+        null,
+        isLostKingdom,
+        x,
+        y,
+        kingdomEnv
+      );
+
       ws.send(JSON.stringify({ success: true }));
     } catch (err) {
       console.error("Error handling WebSocket message:", err);
-
-      // Send error acknowledgment back to the client
       ws.send(JSON.stringify({ success: false, error: err.message }));
     }
   });
