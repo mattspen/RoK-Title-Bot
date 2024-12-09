@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start:3299": "cross-env ENV_FILE=.3299.env node bot.js",
-    "start:3052": "cross-env ENV_FILE=.3052.env node bot.js",
-    "register-commands": "node registerCommands.js"
+    "3299": "cross-env ENV_FILE=.3299.env node bot.js",
+    "3052": "cross-env ENV_FILE=.3052.env node bot.js",
   },
   "dependencies": {
     "@techstark/opencv-js": "^4.10.0-release.1",
