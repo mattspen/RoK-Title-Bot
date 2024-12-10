@@ -740,37 +740,55 @@ async function processGlobalAdbQueue() {
     const deviceId = process.env.EMULATOR_DEVICE_ID;
     const screenshotPath = `./temp/screenshot_city_not_found_${deviceId}.png`;
     console.log(error);
-
-    const errorMessage =
-      error.message === "Title button not found in the ADB command."
-        ? `Please check your city coordinates. To update them, provide the title and coordinates. For example: \`duke 123 456\``
-        : `Ran into an error while processing the request for ${title}.`;
-
-    if (request?.interaction) {
-      const embed = {
-        color: 0xff0000,
-        title: "Error: Title Button Not Found",
-        description: errorMessage,
-        image: {
-          url: `attachment://${screenshotPath.split("/").pop()}`,
-        },
-      };
-
-      request.interaction.channel
-        .send({
-          embeds: [embed],
-          files: [{ attachment: screenshotPath }],
-        })
-        .catch((err) => console.error("Failed to send error embed:", err));
+  
+    // Perform user lookup if userId is available
+    if (request?.userId) {
+      try {
+        const user = await User.findOne({ userId: request.userId });
+        if (user) {
+          const coordinatesMessage = user.x && user.y
+            ? `I have the following coordinates: X: ${user.x}, Y: ${user.y}. But i couldnt find you.`
+            : `No coordinates on file.`;
+  
+          if (request.interaction?.channel) {
+            // Mention user in the channel if interaction is available
+            const embed = {
+              color: 0xff0000,
+              title: "Error: City Not Found",
+              description: `<@${request.userId}>, ${coordinatesMessage}`,
+              image: {
+                url: `attachment://${screenshotPath.split("/").pop()}`,
+              },
+            };
+  
+            await request.interaction.channel.send({
+              embeds: [embed],
+              files: [{ attachment: screenshotPath }],
+            });
+          } else {
+            const discordUser = await client.users.fetch(request.userId);
+            if (discordUser) {
+              await discordUser.send(
+                `<@${request.userId}>, ${coordinatesMessage}`
+              );
+            }
+          }
+        }
+      } catch (lookupError) {
+        console.error("Failed to lookup user or send notification:", lookupError);
+      }
     } else {
-      console.log(errorMessage);
+      console.log("User ID not available, unable to send coordinates.");
     }
-
+  
     lastUserRequest[request?.userId] = null;
     isProcessing[title] = false;
     isAdbRunning[title] = false;
     setTimeout(() => processQueue(title), 10000);
-  } finally {
+  }
+  
+  
+   finally {
     isAdbRunningGlobal = false;
     processGlobalAdbQueue();
   }
@@ -858,44 +876,6 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
     );
   });
 
-  // const stateCheckResult = await new Promise((resolve) => {
-  //   exec(
-  //     `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
-  //     (error) => {
-  //       if (error) {
-  //         console.error(
-  //           `Error taking screenshot on ${deviceId}: ${error.message}`
-  //         );
-  //         resolve({ success: false, error: "Screenshot error" });
-  //         return;
-  //       }
-  //       exec(
-  //         `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
-  //         (error, stdout, stderr) => {
-  //           if (error) {
-  //             console.error(`Error running check_state.py: ${error.message}`);
-  //             resolve({
-  //               success: false,
-  //               error: "State check script execution error",
-  //             });
-  //             return;
-  //           }
-  //           if (stderr) {
-  //             console.error(`Stderr from check_state.py: ${stderr}`);
-  //             resolve({ success: false, error: "State check script stderr" });
-  //             return;
-  //           }
-  //           resolve({ success: true });
-  //         }
-  //       );
-  //     }
-  //   );
-  // });
-
-  // if (!stateCheckResult.success) {
-  //   return stateCheckResult;
-  // }
-
   const titleCommands = {
     Justice: [
       `adb -s ${deviceId} shell input tap 440 592`,
@@ -932,18 +912,27 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
     for (let attempt = 0; attempt < cityCoordinates.length; attempt++) {
       const { x: cityX, y: cityY } = cityCoordinates[attempt];
       const cityTapCommand = `adb -s ${deviceId} shell input tap ${cityX} ${cityY}`;
-
+  
       try {
+        // Perform the first tap
         await execAsync(cityTapCommand);
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
+  
+        // Short delay to mimic human-like behavior
+        await new Promise((resolve) => setTimeout(resolve, 150)); // 150ms delay
+  
+        // Perform the second tap
+        await execAsync(cityTapCommand);
+  
+        // Slightly longer delay to ensure UI updates
+        await new Promise((resolve) => setTimeout(resolve, 500)); // 500ms delay
+  
         const screenshotFilename = `./temp/screenshot_${attempt}_${deviceId}.png`;
         const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
+  
+        // Wait for a moment to ensure the UI has fully rendered before taking a screenshot
+        await new Promise((resolve) => setTimeout(resolve, 300)); // Additional 300ms delay
         await execAsync(screenshotCommand);
-
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
+  
         const titleCheckResult = await new Promise((resolve) => {
           exec(
             `python ./check_title.py ${screenshotFilename} ${deviceId}`,
@@ -963,12 +952,12 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
                 resolve({ success: false });
                 return;
               }
-
+  
               const lines = stdout
                 .split("\n")
                 .filter((line) => line.trim() !== "");
               let jsonLine = lines[lines.length - 1];
-
+  
               let result;
               try {
                 result = JSON.parse(jsonLine.trim());
@@ -977,7 +966,7 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
                 resolve({ success: false });
                 return;
               }
-
+  
               if (
                 !result.coordinates ||
                 typeof result.coordinates.x !== "number" ||
@@ -987,12 +976,12 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
                 resolve({ success: false });
                 return;
               }
-
+  
               resolve({ success: true, coordinates: result.coordinates });
             }
           );
         });
-
+  
         if (titleCheckResult.success) {
           console.log("City button found!");
           return { success: true, coordinates: titleCheckResult.coordinates };
@@ -1005,13 +994,12 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
         );
       }
     }
-
-    console.log("City button not found after all attempts.");
+  
     const screenshotFilename = `./temp/screenshot_city_not_found_${deviceId}.png`;
     const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
     await execAsync(screenshotCommand);
     return { success: false };
-  }
+  }  
 
   // Define the default range for randomX1
   let randomX1 = Math.floor(Math.random() * (648 - 415 + 1)) + 415; // Random X1 between 415 and 648
@@ -1043,7 +1031,6 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
     `adb -s ${deviceId} shell input tap ${randomX1} ${randomY1}`, // Magnifying tap
   ];
 
-  // Check if lostKingdom is true and add tap and paste commands
   if (isLostKingdom) {
     initialCommands.push(
       `adb -s ${deviceId} shell input tap ${lostKingdomX} ${lostKingdomY}`, // Tap for Lost Kingdom
@@ -1058,7 +1045,6 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
     );
   }
 
-  // Continue with the rest of the commands for coordinate inputs and search
   initialCommands.push(
     `adb -s ${deviceId} shell input tap ${randomX3} ${randomY3}`, // X tap
     `adb -s ${deviceId} shell input tap ${randomX3} ${randomY3}`, // X tap
@@ -1095,19 +1081,20 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
   try {
     await executeCommandWithDelay(initialCommands, 0);
     if (isCurrentlyInLostKingdom !== isLostKingdom) {
-      // Only apply the 10-second delay if they are not the same
       await new Promise((resolve) => setTimeout(resolve, 10000));
     } else {
-      // No delay if both values are the same
       console.log("No delay as both Lost Kingdom statuses are the same.");
     }
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
     const titleCheckResult = await tapCityAndCheck();
 
     if (!titleCheckResult.success) {
       return titleCheckResult;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     await executeCommandWithDelay(titleCommands[title], 0);
 
@@ -1140,116 +1127,116 @@ async function handleTitleRequest(
   kingdom = null
 ) {
   try {
-    if (!interaction) {
-      console.log("Processing a WebSocket request...");
-    }
+    if (!interaction) console.log("Processing a WebSocket request...");
 
     const user = userId ? await User.findOne({ userId }) : null;
+    const userKingdom = user?.kingdom || kingdom;
+    const userX = user?.x || x;
+    const userY = user?.y || y;
 
-    const userKingdom = user ? user.kingdom : kingdom;
-    const userX = user ? user.x : x;
-    const userY = user ? user.y : y;
+    if (!userKingdom || userX == null || userY == null) {
+      if (interaction) {
+        await interaction.reply({
+          embeds: [
+            {
+              color: 0x87cefa,
+              title: "❗ Unregistered Coordinates",
+              description:
+                "You haven't registered your coordinates. Please type the following: `register [x] [y]`.",
+            },
+          ],
+        });
+      } else {
+        console.log("Request failed: Missing coordinates or kingdom.");
+      }
+      return;
+    }
 
-    if (userKingdom && userX != null && userY != null) {
-      const lockedTitle = await LockedTitle.findOne({
-        title,
-        kingdom: userKingdom,
-      });
+    const lockedTitle = await LockedTitle.findOne({
+      title,
+      kingdom: userKingdom,
+    });
+    if (lockedTitle?.isLocked) {
+      if (interaction) {
+        const lockedByUser = lockedTitle.lockedBy
+          ? await interaction.client.users
+              .fetch(lockedTitle.lockedBy)
+              .catch(() => null)
+          : null;
+        const embed = {
+          color: 0x87cefa,
+          title: `🔒 The title \"${title}\" is currently locked for your kingdom.`,
+          description: "Please choose a different title.",
+          fields: [
+            {
+              name: "👤 Locked By",
+              value: lockedByUser?.tag || "Unknown User",
+              inline: true,
+            },
+            {
+              name: "⏰ Locked At",
+              value: lockedTitle.lockedAt?.toLocaleString() || "Unknown Time",
+              inline: true,
+            },
+          ],
+        };
+        await interaction.reply({ embeds: [embed] });
+      } else {
+        console.log(`Title \"${title}\" is locked for kingdom ${userKingdom}.`);
+      }
+      return;
+    }
+
+    if (!queues[title]) queues[title] = [];
+    if (!isProcessing[title]) isProcessing[title] = false;
+
+    queues[title].push({
+      interaction,
+      userId,
+      title,
+      kingdom: userKingdom,
+      x: userX,
+      y: userY,
+      isLostKingdom,
+    });
+
+    if (userId) lastUserRequest[userId] = title;
+    if (!isProcessing[title]) processQueue(title);
+
+    if (interaction) {
       const customDuration =
         (await fetchCustomDurationFromDatabase(title, userKingdom)) ||
         titleDurations[title] ||
         0;
-
-      if (lockedTitle && lockedTitle.isLocked) {
-        if (interaction) {
-          const lockedByUser = lockedTitle.lockedBy
-            ? await interaction.client.users
-                .fetch(lockedTitle.lockedBy)
-                .catch(() => null)
-            : null;
-          const lockedBy = lockedByUser ? lockedByUser.tag : "Unknown User";
-          const lockedAt = lockedTitle.lockedAt
-            ? lockedTitle.lockedAt.toLocaleString()
-            : "Unknown Time";
-
-          const embed = {
-            color: 0x87cefa,
-            title: `🔒 The title "${title}" is currently locked for your kingdom.`,
-            description: "Please choose a different title.",
-            fields: [
-              { name: "👤 Locked By", value: lockedBy, inline: true },
-              { name: "⏰ Locked At", value: lockedAt, inline: true },
-            ],
-          };
-          await interaction.reply({ embeds: [embed] });
-        } else {
-          console.log(`Title "${title}" is locked for kingdom ${userKingdom}.`);
-        }
-        return;
-      }
-
-      if (!queues[title]) queues[title] = [];
-      if (!isProcessing[title]) isProcessing[title] = false;
-
-      const request = {
-        interaction,
-        userId,
-        title,
-        kingdom: userKingdom,
-        x: userX,
-        y: userY,
-        isLostKingdom,
+      const embed = {
+        color: 0x87cefa,
+        title: `${title} Request Added`,
+        description: `**Position in Queue**: ${queues[title].length}\n`,
+        footer: {
+          text: `📍 ${
+            isLostKingdom ? process.env.LOSTKINGDOM : process.env.KINGDOM
+          } ${userX} ${userY}    ⌛ ${customDuration} sec`,
+        },
       };
-
-      queues[title].push(request);
-      const queuePosition = queues[title].length;
-      if (userId) lastUserRequest[userId] = title;
-
-      if (!isProcessing[title]) processQueue(title);
-
-      if (interaction) {
-        const embed = {
-          color: 0x87cefa,
-          title: `${title} Request Added`,
-          footer: {
-            text: `📍 ${
-              isLostKingdom ? process.env.LOSTKINGDOM : process.env.KINGDOM
-            } ${userX} ${userY}    ⌛ ${customDuration} sec`,
-          },
-        };
-
-        if (queuePosition >= 1) {
-          embed.description = `**Position in Queue**: ${queuePosition}\n`;
-        }
-
-        await interaction.reply({ embeds: [embed] });
-      } else {
-        console.log(
-          `Request added: Title "${title}" for kingdom ${userKingdom} at coordinates (${userX}, ${userY}).`
-        );
-      }
+      await interaction.reply({ embeds: [embed] });
     } else {
-      if (interaction) {
-        const embed = {
-          color: 0x87cefa,
-          title: "❗ Unregistered Coordinates",
-          description:
-            "You haven't registered your coordinates. Please type the following: `register [x] [y]`.",
-        };
-        await interaction.reply({ embeds: [embed] });
-      } else {
-        console.log("Request failed: Missing coordinates or kingdom.");
-      }
+      console.log(
+        `Request added: Title \"${title}\" for kingdom ${userKingdom} at coordinates (${userX}, ${userY}).`
+      );
     }
   } catch (error) {
     console.error("An unexpected error occurred:", error);
     if (interaction && !interaction.replied) {
-      const embed = {
-        color: 0x87cefa,
-        title: "⚠️ Unexpected Error",
-        description: "An unexpected error occurred. Please try again later.",
-      };
-      await interaction.reply({ embeds: [embed] });
+      await interaction.reply({
+        embeds: [
+          {
+            color: 0x87cefa,
+            title: "⚠️ Unexpected Error",
+            description:
+              "An unexpected error occurred. Please try again later.",
+          },
+        ],
+      });
     }
   }
 }
