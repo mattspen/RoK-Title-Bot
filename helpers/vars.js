@@ -28,3 +28,12 @@ export const titleDurations = {
 
 export let timers = {};
 export const lastUserRequest = {};
+
+export const cityCoordinates = [
+  { x: 968, y: 548 },
+  { x: 882, y: 576 },
+  { x: 970, y: 560 },
+  { x: 844, y: 442 },
+  { x: 931, y: 499 },
+  { x: 1020, y: 515 },
+];

@@ -7,6 +7,7 @@ import TitleDuration from "./models/setTimer.js";
 import LockedTitle from "./models/locktitle.js";
 import WebSocket from "ws";
 import {
+  cityCoordinates,
   isAdbRunning,
   isProcessing,
   lastUserRequest,
@@ -741,14 +742,13 @@ async function processGlobalAdbQueue() {
     const screenshotPath = `./temp/screenshot_city_not_found_${deviceId}.png`;
     console.log(error);
   
-    // Perform user lookup if userId is available
     if (request?.userId) {
       try {
         const user = await User.findOne({ userId: request.userId });
         if (user) {
-          const coordinatesMessage = user.x && user.y
-            ? `I have the following coordinates: X: ${user.x}, Y: ${user.y}. But i couldnt find you.`
-            : `No coordinates on file.`;
+            const coordinatesMessage = user.x && user.y
+            ? `I have the coordinates X: ${user.x}, Y: ${user.y}, but I couldn't locate your city.`
+            : `No coordinates found on file. Please register your coordinates.`;
   
           if (request.interaction?.channel) {
             // Mention user in the channel if interaction is available
@@ -899,14 +899,7 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
     ],
   };
 
-  const cityCoordinates = [
-    { x: 968, y: 548 },
-    { x: 882, y: 576 },
-    { x: 970, y: 560 },
-    { x: 844, y: 442 },
-    { x: 931, y: 499 },
-    { x: 1020, y: 515 },
-  ];
+
 
   async function tapCityAndCheck() {
     for (let attempt = 0; attempt < cityCoordinates.length; attempt++) {
@@ -914,23 +907,18 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
       const cityTapCommand = `adb -s ${deviceId} shell input tap ${cityX} ${cityY}`;
   
       try {
-        // Perform the first tap
         await execAsync(cityTapCommand);
   
-        // Short delay to mimic human-like behavior
-        await new Promise((resolve) => setTimeout(resolve, 150)); // 150ms delay
+        await new Promise((resolve) => setTimeout(resolve, 150));
   
-        // Perform the second tap
         await execAsync(cityTapCommand);
   
-        // Slightly longer delay to ensure UI updates
-        await new Promise((resolve) => setTimeout(resolve, 500)); // 500ms delay
+        await new Promise((resolve) => setTimeout(resolve, 500));
   
         const screenshotFilename = `./temp/screenshot_${attempt}_${deviceId}.png`;
         const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
   
-        // Wait for a moment to ensure the UI has fully rendered before taking a screenshot
-        await new Promise((resolve) => setTimeout(resolve, 300)); // Additional 300ms delay
+        await new Promise((resolve) => setTimeout(resolve, 300));
         await execAsync(screenshotCommand);
   
         const titleCheckResult = await new Promise((resolve) => {
