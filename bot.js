@@ -2,10 +2,9 @@ import { Client, GatewayIntentBits as Intents } from "discord.js";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import User from "./models/User.js";
-import { exec } from "child_process";
+import { exec, execFile } from "child_process";
 import TitleDuration from "./models/setTimer.js";
 import LockedTitle from "./models/locktitle.js";
-import WebSocket from "ws";
 import {
   cityCoordinates,
   isAdbRunning,
@@ -899,8 +898,6 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
     ],
   };
 
-
-
   async function tapCityAndCheck() {
     for (let attempt = 0; attempt < cityCoordinates.length; attempt++) {
       const { x: cityX, y: cityY } = cityCoordinates[attempt];
@@ -1229,40 +1226,67 @@ async function handleTitleRequest(
   }
 }
 
-// Set up WebSocket server
-const kingdomEnv = parseInt(process.env.KINGDOM, 10);
+const processedResults = new Set();
+let isScriptRunning = false;
 
-const wss = new WebSocket.Server({ port: kingdomEnv });
+function executeOCRScript() {
+  if (isScriptRunning) {
+    console.log("OCR script is already running, skipping this execution.");
+    return;
+  }
 
-wss.on("connection", (ws) => {
-  console.log("WebSocket connection established.");
+  isScriptRunning = true;
+  const deviceId = process.env.EMULATOR_DEVICE_ID;
 
-  ws.on("message", async (message) => {
+  execFile("python", ['chat_webhook.py', deviceId], (error, stdout, stderr) => {
+    isScriptRunning = false; // Mark script as no longer running
+
+    if (error) {
+      console.error(`Error executing Python script: ${error.message}`);
+      // Retry after a delay even on errors
+      setTimeout(executeOCRScript, 5000);
+      return;
+    }
+
+    if (stderr) {
+      console.error(`Python stderr: ${stderr}`);
+      // Retry after a delay even on errors
+      setTimeout(executeOCRScript, 5000);
+      return;
+    }
+
     try {
-      const data = JSON.parse(message);
+      const results = JSON.parse(stdout.trim() || "[]"); // Handle empty stdout
+      if (results.length === 0) {
+        // Retry after a delay
+        setTimeout(executeOCRScript, 5000);
+        return;
+      }
 
-      const { title, x, y, isLostKingdom } = data;
+      results.forEach(async (result) => {
+        const { title, x, y, isLostKingdom } = result;
+        const uniqueId = `${title}-${x}-${y}-${isLostKingdom}`;
 
-      console.log(`Received request from WebSocket: ${JSON.stringify(data)}`);
+        if (!processedResults.has(uniqueId)) {
+          processedResults.add(uniqueId);
 
-      await handleTitleRequest(
-        null,
-        title,
-        null,
-        isLostKingdom,
-        x,
-        y,
-        kingdomEnv
-      );
+          // Call handleTitleRequest
+          await handleTitleRequest(null, title, null, isLostKingdom, x, y, process.env.KINGDOM);
+          console.log(`Handled title request for "${title}" at (${x}, ${y}).`);
+        }
+      });
 
-      ws.send(JSON.stringify({ success: true }));
-    } catch (err) {
-      console.error("Error handling WebSocket message:", err);
-      ws.send(JSON.stringify({ success: false, error: err.message }));
+      // After processing results, re-execute after delay
+      setTimeout(executeOCRScript, 5000);
+
+    } catch (parseError) {
+      console.error("Error parsing Python script output:", parseError.message);
+      // Retry after a delay
+      setTimeout(executeOCRScript, 5000);
     }
   });
+}
 
-  ws.on("close", () => {
-    console.log("WebSocket connection closed.");
-  });
-});
+// Start the first execution
+executeOCRScript();
+
