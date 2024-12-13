@@ -72,8 +72,9 @@ def perform_ocr(image_path):
         ocr_text = pytesseract.image_to_string(image_path, lang='eng')
         corrected_text = ocr_text.replace(';', ':').replace('_', '').replace('\n', ' ')
 
+        # Flexible regex pattern to match titles with extra text after them
         matches = re.findall(
-            r'(Duke|Justice|Scientist|Architect)\s+\(#(C\d+)\s+X([:.0-9]+)\s+Y([:.0-9]+)\)', 
+            r'(Duke|Justice|Scientist|Architect)\b.*?\(#(C\d+)\s*X[:.]?(\d+)\s*Y[:.]?(\d+)\)', 
             corrected_text,
             re.IGNORECASE
         )
@@ -82,8 +83,8 @@ def perform_ocr(image_path):
         for match in matches:
             title = match[0].capitalize()
             kd = match[1]
-            x_coord = re.sub(r'\D', '', match[2])
-            y_coord = re.sub(r'\D', '', match[3])
+            x_coord = match[2]
+            y_coord = match[3]
             is_lost_kingdom = kd.startswith("C")
             result = {
                 "title": title,

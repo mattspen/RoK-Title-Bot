@@ -215,9 +215,18 @@ client.on("messageCreate", async (message) => {
 
     if (args[0].toLowerCase() === "register") {
       if (args.length < 3) {
-        await message.reply(
-          "> Please provide coordinates in the format: `register <x> <y>`."
-        );
+        const embed = {
+          color: 0xff0000,
+          title: "⚠️ Missing Coordinates",
+          description:
+            "Please provide coordinates in the format: `register <x> <y>`.",
+          footer: {
+            text: `Requested by ${message.author.username}`,
+            icon_url: message.author.displayAvatarURL(),
+          },
+          timestamp: new Date(),
+        };
+        await message.reply({ embeds: [embed] });
         return;
       }
 
@@ -226,9 +235,17 @@ client.on("messageCreate", async (message) => {
       const y = parseInt(isUsernamePresent ? args[3] : args[2], 10);
 
       if (isNaN(x) || isNaN(y)) {
-        await message.reply(
-          "> Invalid coordinates. Please enter valid numbers for x and y."
-        );
+        const embed = {
+          color: 0xff0000,
+          title: "⚠️ Invalid Coordinates",
+          description: "Please enter valid numbers for x and y.",
+          footer: {
+            text: `Requested by ${message.author.username}`,
+            icon_url: message.author.displayAvatarURL(),
+          },
+          timestamp: new Date(),
+        };
+        await message.reply({ embeds: [embed] });
         return;
       }
 
@@ -272,16 +289,32 @@ client.on("messageCreate", async (message) => {
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
-        await message.reply(
-          "> You do not have permission to use this command."
-        );
+        const embed = {
+          color: 0xff0000,
+          title: "⚠️ Permission Denied",
+          description: "You do not have permission to use this command.",
+          footer: {
+            text: `Requested by ${message.author.username}`,
+            icon_url: message.author.displayAvatarURL(),
+          },
+          timestamp: new Date(),
+        };
+        await message.reply({ embeds: [embed] });
         return;
       }
 
       if (args.length < 3) {
-        await message.reply(
-          "> Invalid command format. Please use: `settimer <title> <duration>`."
-        );
+        const embed = {
+          color: 0xff0000,
+          title: "⚠️ Invalid Command Format",
+          description: "Please use: `settimer <title> <duration>`.",
+          footer: {
+            text: `Requested by ${message.author.username}`,
+            icon_url: message.author.displayAvatarURL(),
+          },
+          timestamp: new Date(),
+        };
+        await message.reply({ embeds: [embed] });
         return;
       }
 
@@ -740,15 +773,16 @@ async function processGlobalAdbQueue() {
     const deviceId = process.env.EMULATOR_DEVICE_ID;
     const screenshotPath = `./temp/screenshot_city_not_found_${deviceId}.png`;
     console.log(error);
-  
+
     if (request?.userId) {
       try {
         const user = await User.findOne({ userId: request.userId });
         if (user) {
-            const coordinatesMessage = user.x && user.y
-            ? `I have the coordinates X: ${user.x}, Y: ${user.y}, but I couldn't locate your city.`
-            : `No coordinates found on file. Please register your coordinates.`;
-  
+          const coordinatesMessage =
+            user.x && user.y
+              ? `I have the coordinates X: ${user.x}, Y: ${user.y}, but I couldn't locate your city.`
+              : `No coordinates found on file. Please register your coordinates.`;
+
           if (request.interaction?.channel) {
             // Mention user in the channel if interaction is available
             const embed = {
@@ -759,7 +793,7 @@ async function processGlobalAdbQueue() {
                 url: `attachment://${screenshotPath.split("/").pop()}`,
               },
             };
-  
+
             await request.interaction.channel.send({
               embeds: [embed],
               files: [{ attachment: screenshotPath }],
@@ -774,20 +808,20 @@ async function processGlobalAdbQueue() {
           }
         }
       } catch (lookupError) {
-        console.error("Failed to lookup user or send notification:", lookupError);
+        console.error(
+          "Failed to lookup user or send notification:",
+          lookupError
+        );
       }
     } else {
       console.log("User ID not available, unable to send coordinates.");
     }
-  
+
     lastUserRequest[request?.userId] = null;
     isProcessing[title] = false;
     isAdbRunning[title] = false;
     setTimeout(() => processQueue(title), 10000);
-  }
-  
-  
-   finally {
+  } finally {
     isAdbRunningGlobal = false;
     processGlobalAdbQueue();
   }
@@ -902,22 +936,22 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
     for (let attempt = 0; attempt < cityCoordinates.length; attempt++) {
       const { x: cityX, y: cityY } = cityCoordinates[attempt];
       const cityTapCommand = `adb -s ${deviceId} shell input tap ${cityX} ${cityY}`;
-  
+
       try {
         await execAsync(cityTapCommand);
-  
+
         await new Promise((resolve) => setTimeout(resolve, 150));
-  
+
         await execAsync(cityTapCommand);
-  
+
         await new Promise((resolve) => setTimeout(resolve, 500));
-  
+
         const screenshotFilename = `./temp/screenshot_${attempt}_${deviceId}.png`;
         const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
-  
+
         await new Promise((resolve) => setTimeout(resolve, 300));
         await execAsync(screenshotCommand);
-  
+
         const titleCheckResult = await new Promise((resolve) => {
           exec(
             `python ./check_title.py ${screenshotFilename} ${deviceId}`,
@@ -937,12 +971,12 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
                 resolve({ success: false });
                 return;
               }
-  
+
               const lines = stdout
                 .split("\n")
                 .filter((line) => line.trim() !== "");
               let jsonLine = lines[lines.length - 1];
-  
+
               let result;
               try {
                 result = JSON.parse(jsonLine.trim());
@@ -951,7 +985,7 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
                 resolve({ success: false });
                 return;
               }
-  
+
               if (
                 !result.coordinates ||
                 typeof result.coordinates.x !== "number" ||
@@ -961,12 +995,12 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
                 resolve({ success: false });
                 return;
               }
-  
+
               resolve({ success: true, coordinates: result.coordinates });
             }
           );
         });
-  
+
         if (titleCheckResult.success) {
           console.log("City button found!");
           return { success: true, coordinates: titleCheckResult.coordinates };
@@ -979,12 +1013,12 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
         );
       }
     }
-  
+
     const screenshotFilename = `./temp/screenshot_city_not_found_${deviceId}.png`;
     const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
     await execAsync(screenshotCommand);
     return { success: false };
-  }  
+  }
 
   // Define the default range for randomX1
   let randomX1 = Math.floor(Math.random() * (648 - 415 + 1)) + 415; // Random X1 between 415 and 648
@@ -1052,7 +1086,7 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
           return;
         }
 
-        const randomDelay = Math.floor(Math.random() * (300 - 100 + 1)) + 100;
+        const randomDelay = Math.floor(Math.random() * (800 - 300 + 1)) + 300;
 
         setTimeout(() => {
           executeCommandWithDelay(commands, index + 1)
@@ -1152,18 +1186,13 @@ async function handleTitleRequest(
           color: 0x87cefa,
           title: `🔒 The title \"${title}\" is currently locked for your kingdom.`,
           description: "Please choose a different title.",
-          fields: [
-            {
-              name: "👤 Locked By",
-              value: lockedByUser?.tag || "Unknown User",
-              inline: true,
-            },
-            {
-              name: "⏰ Locked At",
-              value: lockedTitle.lockedAt?.toLocaleString() || "Unknown Time",
-              inline: true,
-            },
-          ],
+          footer: {
+            text: `👤 Locked By: ${
+              lockedByUser?.tag || "Unknown User"
+            } ⏰ Locked At: ${
+              lockedTitle.lockedAt?.toLocaleString() || "Unknown Time"
+            }`,
+          },
         };
         await interaction.reply({ embeds: [embed] });
       } else {
@@ -1196,10 +1225,10 @@ async function handleTitleRequest(
       const embed = {
         color: 0x87cefa,
         title: `${title} Request Added`,
-        description: `**Position in Queue**: ${queues[title].length}\n`,
+        description: queues[title].length > 0 ? `**Position in Queue**: ${queues[title].length}\n` : "",
         footer: {
           text: `📍 ${
-            isLostKingdom ? process.env.LOSTKINGDOM : process.env.KINGDOM
+        isLostKingdom ? process.env.LOSTKINGDOM : process.env.KINGDOM
           } ${userX} ${userY}    ⌛ ${customDuration} sec`,
         },
       };
@@ -1238,7 +1267,7 @@ function executeOCRScript() {
   isScriptRunning = true;
   const deviceId = process.env.EMULATOR_DEVICE_ID;
 
-  execFile("python", ['chat_webhook.py', deviceId], (error, stdout, stderr) => {
+  execFile("python", ["chat_webhook.py", deviceId], (error, stdout, stderr) => {
     isScriptRunning = false; // Mark script as no longer running
 
     if (error) {
@@ -1271,14 +1300,21 @@ function executeOCRScript() {
           processedResults.add(uniqueId);
 
           // Call handleTitleRequest
-          await handleTitleRequest(null, title, null, isLostKingdom, x, y, process.env.KINGDOM);
+          await handleTitleRequest(
+            null,
+            title,
+            null,
+            isLostKingdom,
+            x,
+            y,
+            process.env.KINGDOM
+          );
           console.log(`Handled title request for "${title}" at (${x}, ${y}).`);
         }
       });
 
       // After processing results, re-execute after delay
       setTimeout(executeOCRScript, 5000);
-
     } catch (parseError) {
       console.error("Error parsing Python script output:", parseError.message);
       // Retry after a delay
@@ -1289,4 +1325,3 @@ function executeOCRScript() {
 
 // Start the first execution
 executeOCRScript();
-
