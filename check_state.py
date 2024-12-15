@@ -15,7 +15,7 @@ def check_state(screenshot_path, device_id):
     img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
 
     # Define template paths
-    template_paths = ['./resources/exit.png', './resources/notice_board_app_exit.png', 
+    template_paths = ['./resources/exit.png', 
                       './resources/exit2.png', './resources/elimination_button_exit.png', './resources/notice_board_exit.png']
 
     # Initialize variables to store the best match
@@ -46,7 +46,7 @@ def check_state(screenshot_path, device_id):
 
         # If exit.png or notice_board_exit.png is found, return the coordinates immediately
         if template_path in ['./resources/exit.png', './resources/exit2.png', 
-                             './resources/notice_board_exit.png', './resources/elimination_button_exit.png', './resources/notice_board_app_exit.png'] and best_match["match"]:
+                             './resources/notice_board_exit.png', './resources/elimination_button_exit.png'] and best_match["match"]:
             click_exit_button(device_id, best_match["location"], template.shape[:2])  # Click the exit button
             
             # Save the screenshot with the exit button clicked

@@ -876,6 +876,44 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
   console.log(`Coordinates: x = ${x}, y = ${y}`);
 
+    const stateCheckResult = await new Promise((resolve) => {
+    exec(
+      `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
+      (error) => {
+        if (error) {
+          console.error(
+            `Error taking screenshot on ${deviceId}: ${error.message}`
+          );
+          resolve({ success: false, error: "Screenshot error" });
+          return;
+        }
+        exec(
+          `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
+          (error, stdout, stderr) => {
+            if (error) {
+              console.error(`Error running check_state.py: ${error.message}`);
+              resolve({
+                success: false,
+                error: "State check script execution error",
+              });
+              return;
+            }
+            if (stderr) {
+              console.error(`Stderr from check_state.py: ${stderr}`);
+              resolve({ success: false, error: "State check script stderr" });
+              return;
+            }
+            resolve({ success: true });
+          }
+        );
+      }
+    );
+  });
+
+  if (!stateCheckResult.success) {
+    return stateCheckResult;
+  }
+
   const isCurrentlyInLostKingdom = await new Promise((resolve) => {
     exec(
       `adb -s ${deviceId} exec-out screencap -p > ./temp/lk_state_${deviceId}.png`,
