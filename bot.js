@@ -982,12 +982,12 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
 
         await execAsync(cityTapCommand);
 
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 800));
 
         const screenshotFilename = `./temp/screenshot_${attempt}_${deviceId}.png`;
         const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
 
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         await execAsync(screenshotCommand);
 
         const titleCheckResult = await new Promise((resolve) => {
