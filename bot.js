@@ -17,6 +17,7 @@ import {
 import { fetchCustomDurationFromDatabase } from "./helpers/fetchCustomDurationFromDatabase.js";
 import schedule from "node-schedule";
 import { refreshApp } from "./helpers/refreshApp.js";
+import { runCheckState } from "./helpers/checkState.js";
 
 dotenv.config({
   path: process.env.ENV_FILE || ".env",
@@ -88,7 +89,7 @@ client.on("messageCreate", async (message) => {
 
       if (!superUserIds.includes(userId)) {
         await message.reply(
-          "> You do not have permission to use this command."
+          "You do not have permission to use this command."
         );
         return;
       }
@@ -109,7 +110,7 @@ client.on("messageCreate", async (message) => {
       // Validate title
       if (!normalizedTitle) {
         await message.reply(
-          `> Invalid title. Only the following titles can be locked: ${validTitles.join(
+          `Invalid title. Only the following titles can be locked: ${validTitles.join(
             ", "
           )}.`
         );
@@ -123,7 +124,7 @@ client.on("messageCreate", async (message) => {
       );
 
       const embed = {
-        color: 0xff0000, // Red color for lock
+        color: 0xff0000,
         title: `🔒 Title Locked`,
         description: lockedTitle
           ? `The title "${normalizedTitle}" has been successfully locked for kingdom ${kingdom}.`
@@ -131,12 +132,6 @@ client.on("messageCreate", async (message) => {
         fields: [
           { name: "Title", value: normalizedTitle, inline: true },
           { name: "Kingdom", value: kingdom, inline: true },
-          { name: "Locked By", value: `<@${userId}>`, inline: true },
-          {
-            name: "Locked At",
-            value: new Date().toLocaleString(),
-            inline: true,
-          },
         ],
         footer: {
           text: `Locked by ${message.author.username}`,
@@ -157,13 +152,13 @@ client.on("messageCreate", async (message) => {
 
       if (!superUserIds.includes(userId)) {
         await message.reply(
-          "> You do not have permission to use this command."
+          "You do not have permission to use this command."
         );
         return;
       }
 
       if (args.length < 2) {
-        await message.reply("> Please provide a title to unlock.");
+        await message.reply("Please provide a title to unlock.");
         return;
       }
 
@@ -178,7 +173,7 @@ client.on("messageCreate", async (message) => {
       // Validate title
       if (!normalizedTitle) {
         await message.reply(
-          `> Invalid title. Only the following titles can be unlocked: ${validTitles.join(
+          `Invalid title. Only the following titles can be unlocked: ${validTitles.join(
             ", "
           )}.`
         );
@@ -375,7 +370,7 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    if (args[0].toLowerCase() === "resetbot") {
+    if (args[0].toLowerCase() === "restartapp") {
       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
         id.trim()
       );
@@ -383,7 +378,7 @@ client.on("messageCreate", async (message) => {
 
       if (!superUserIds.includes(userId)) {
         await message.reply(
-          "> You do not have permission to use this command."
+          "You do not have permission to use this command."
         );
         return;
       }
@@ -451,6 +446,13 @@ client.on("messageCreate", async (message) => {
       args.includes(process.env.LOSTKINGDOM)
     ) {
       isLostKingdom = true;
+    } else if (
+      args.includes("hk") ||
+      args.includes("HK") ||
+      args.includes("Hk") ||
+      args.includes(process.env.KINGDOM)
+    ) {
+      isLostKingdom = false;
     }
 
     if (!title) return;
@@ -473,32 +475,6 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    if (!client.lastTitleRequestTime) {
-      client.lastTitleRequestTime = {};
-    }
-
-    const now = Date.now();
-    const lastRequestTime = client.lastTitleRequestTime[userId] || 0;
-    const timeSinceLastRequest = now - lastRequestTime;
-
-    if (timeSinceLastRequest < 4000) {
-      const embed = {
-        color: 0xff0000,
-        title: "⚠️ Slow Down",
-        description:
-          "You are sending requests too quickly. Please wait a few seconds before trying again.",
-        footer: {
-          text: `Requested by ${message.author.username}`,
-          icon_url: message.author.displayAvatarURL(),
-        },
-        timestamp: new Date(),
-      };
-
-      await message.reply({ embeds: [embed] });
-      return;
-    }
-
-    client.lastTitleRequestTime[userId] = now;
     lastUserRequest[userId] = title;
 
     let x = null;
@@ -521,6 +497,7 @@ client.on("messageCreate", async (message) => {
           timestamp: new Date(),
         };
 
+        lastUserRequest[userId] = null;
         await message.reply({ embeds: [embed] });
         return;
       }
@@ -577,70 +554,6 @@ client.on("messageCreate", async (message) => {
     await message.reply({ embeds: [embed] });
   }
 });
-
-function runCheckState() {
-  const deviceId = process.env.EMULATOR_DEVICE_ID;
-  if (!deviceId) {
-    console.error("No device ID found.");
-    return;
-  }
-
-  const screenshotPath = `./temp/current_state_${deviceId}.png`;
-
-  exec(
-    `adb -s ${deviceId} exec-out screencap -p > ${screenshotPath}`,
-    (error) => {
-      if (error) {
-        console.error(`Error taking screenshot: ${error.message}`);
-        return;
-      }
-
-      exec(
-        `python check_home.py ${deviceId} ${screenshotPath}`,
-        (error, stdout, stderr) => {
-          if (error) {
-            console.error(`Error with check_home.py: ${error.message}`);
-            return;
-          }
-          if (stderr) {
-            console.error(`Stderr from check_home.py: ${stderr}`);
-            return;
-          }
-
-          exec(
-            `python check_state.py ${screenshotPath} ${deviceId}`,
-            (error, stdout, stderr) => {
-              if (error) {
-                console.error(`Error with check_state.py: ${error.message}`);
-                return;
-              }
-              if (stderr) {
-                console.error(`Stderr from check_state.py: ${stderr}`);
-                return;
-              }
-
-              exec(
-                `python connection_check.py ${screenshotPath} ${deviceId}`,
-                (error, stdout, stderr) => {
-                  if (error) {
-                    console.error(
-                      `Error with connection_check.py: ${error.message}`
-                    );
-                    return;
-                  }
-                  if (stderr) {
-                    console.error(`Stderr from connection_check.py: ${stderr}`);
-                    return;
-                  }
-                }
-              );
-            }
-          );
-        }
-      );
-    }
-  );
-}
 
 setInterval(() => {
   const isAnyAdbRunning = Object.values(isAdbRunning).some((kingdom) =>
@@ -757,7 +670,7 @@ async function processGlobalAdbQueue() {
       timers[title] = startTimer(collector, remainingTime, title, userId);
     } else {
       console.log(
-        `WebSocket request for title "${title}" processed. Timer will elapse in ${remainingTime} seconds.`
+        `Chat request for title "${title}" processed. Timer will elapse in ${remainingTime} seconds.`
       );
 
       timers[title] = setTimeout(() => {
@@ -781,10 +694,9 @@ async function processGlobalAdbQueue() {
           const coordinatesMessage =
             user.x && user.y
               ? `I have the coordinates X: ${user.x}, Y: ${user.y}, but I couldn't locate your city.`
-              : `No coordinates found on file. Please register your coordinates.`;
+              : `I lost your coords. Please try again`;
 
           if (request.interaction?.channel) {
-            // Mention user in the channel if interaction is available
             const embed = {
               color: 0xff0000,
               title: "Error: City Not Found",
@@ -874,7 +786,7 @@ function execAsync(command) {
 
 async function runAdbCommand(x, y, title, isLostKingdom) {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
-  console.log(`Coordinates: x = ${x}, y = ${y}`);
+  console.log(`Coordinates: ${x} ${y}`);
 
     const stateCheckResult = await new Promise((resolve) => {
     exec(
@@ -1115,17 +1027,28 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
 
   async function executeCommandWithDelay(commands, index) {
     if (index >= commands.length) return Promise.resolve();
-
+  
     return new Promise((resolve, reject) => {
-      exec(commands[index], (error, stdout) => {
+      exec(commands[index], (error) => {
         if (error) {
           console.error(`Error executing command: ${error.message}`);
           reject(error);
           return;
         }
-
-        const randomDelay = Math.floor(Math.random() * (800 - 300 + 1)) + 300;
-
+  
+        // Base delay with slight human-like variance
+        const baseDelay = 300; // Base delay
+        const variance = Math.random() * 200 - 100; // Random variance between -100ms to +100ms
+        let randomDelay = baseDelay + variance;
+  
+        // Introduce occasional longer delays every 3-5 commands
+        if ((index + 1) % 4 === 0) {
+          randomDelay += Math.random() * 500 + 300; // Add extra 300-800ms
+          console.log("Taking a slightly longer pause for natural timing...");
+        }
+  
+        console.log(`Executing next command after ${Math.round(randomDelay)} ms`);
+  
         setTimeout(() => {
           executeCommandWithDelay(commands, index + 1)
             .then(resolve)
@@ -1134,7 +1057,7 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
       });
     });
   }
-
+  
   try {
     await executeCommandWithDelay(initialCommands, 0);
     if (isCurrentlyInLostKingdom !== isLostKingdom) {
@@ -1184,7 +1107,7 @@ async function handleTitleRequest(
   kingdom = null
 ) {
   try {
-    if (!interaction) console.log("Processing a WebSocket request...");
+    if (!interaction) console.log("Processing chat request...");
 
     const user = userId ? await User.findOne({ userId }) : null;
     const userKingdom = user?.kingdom || kingdom;
@@ -1361,5 +1284,4 @@ function executeOCRScript() {
   });
 }
 
-// Start the first execution
 executeOCRScript();
