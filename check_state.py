@@ -16,7 +16,7 @@ def check_state(screenshot_path, device_id):
 
     # Define template paths
     template_paths = ['./resources/exit.png', 
-                      './resources/exit2.png', './resources/elimination_button_exit.png', './resources/notice_board_exit.png']
+                      './resources/exit2.png', './resources/elimination_button_exit.png', './resources/notice_board_exit.png', './resources/home_screen.png']
 
     # Initialize variables to store the best match
     best_match = {
@@ -60,6 +60,16 @@ def check_state(screenshot_path, device_id):
                 "location": best_match["location"]
             }
 
+        # If home_screen.png is found, start the game
+        if template_path == './resources/home_screen.png' and best_match["match"]:
+            print("Home screen detected. Starting Rise of Kingdoms...")
+            start_rok(device_id)
+            return {
+                "button_found": True,
+                "confidence": best_match["confidence"],
+                "location": best_match["location"]
+            }
+
     # Prepare the response for checking if the button is present
     result = {
         "button_found": best_match["match"],
@@ -94,6 +104,12 @@ def click_exit_button(device_id, location, template_shape):
     exec_command = f'adb -s {device_id} shell input tap {click_x} {click_y}'
     subprocess.run(exec_command, shell=True)  # Execute the tap command
     print(f"Clicked exit button at ({click_x}, {click_y}) on {device_id}")
+
+def start_rok(device_id):
+    """Start Rise of Kingdoms using adb command."""
+    exec_command = f'adb -s {device_id} shell monkey -p com.lilithgame.roc.gp 1'
+    subprocess.run(exec_command, shell=True)
+    print(f"Rise of Kingdoms started on {device_id}.")
 
 def highlight_area(img, location, template_shape):
     top_left = location

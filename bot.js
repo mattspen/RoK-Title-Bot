@@ -16,7 +16,6 @@ import {
 } from "./helpers/vars.js";
 import { fetchCustomDurationFromDatabase } from "./helpers/fetchCustomDurationFromDatabase.js";
 import schedule from "node-schedule";
-import { refreshApp } from "./helpers/refreshApp.js";
 import { runCheckState } from "./helpers/checkState.js";
 
 dotenv.config({
@@ -62,6 +61,74 @@ client.once("ready", async () => {
       );
     }
   });
+});
+
+
+const allTitles = ["Duke", "Justice", "Architect", "Scientist"];
+
+schedule.scheduleJob("0 1 * * *", async () => {
+  try {
+    const channel = client.channels.cache.get(process.env.DISCORD_CHANNEL_ID);
+    const kingdom = process.env.KINGDOM;
+
+    if (!channel) {
+      console.error("Failed to find the specified Discord channel.");
+      return;
+    }
+
+    // Lock all titles
+    for (const title of allTitles) {
+      await LockedTitle.findOneAndUpdate(
+        { title, kingdom },
+        { isLocked: true, lockedBy: "system", lockedAt: new Date() },
+        { upsert: true }
+      );
+    }
+    console.log("All titles locked.");
+
+    // Send the initial embed
+    const refreshEmbed = {
+      color: 0xffa500, // Orange color for the embed
+      title: "🔄 Refreshing Rise of Kingdoms",
+      description:
+      "We are refreshing Rise of Kingdoms. Please wait for 3 minutes before making any requests.",
+      footer: {
+      text: "🔮Title Oracle",
+      },
+      timestamp: new Date(),
+    };
+
+    await channel.send({ embeds: [refreshEmbed] });
+    console.log("Refresh notification sent to the Discord channel.");
+
+    // Wait 5 minutes and send the "ready for requests" embed
+    setTimeout(async () => {
+      // Unlock all titles
+      for (const title of allTitles) {
+        await LockedTitle.findOneAndUpdate(
+          { title, kingdom },
+          { isLocked: false, lockedBy: "Title Oracle", lockedAt: null }, // Reset lockedBy and lockedAt
+          { new: true }
+        );
+      }
+      console.log("All titles unlocked.");
+
+      const readyEmbed = {
+        color: 0x00ff00, // Green color for the embed
+        title: "✅ Ready for Requests",
+        description: "The bot is now ready to handle your title requests.",
+        footer: {
+          text: "🔮Title Oracle",
+        },
+        timestamp: new Date(),
+      };
+
+      await channel.send({ embeds: [readyEmbed] });
+      console.log("Ready notification sent to the Discord channel.");
+    }, 3 * 60 * 1000); // 5 minutes in milliseconds
+  } catch (error) {
+    console.error("Error during refresh process:", error);
+  }
 });
 
 client.on("messageCreate", async (message) => {
@@ -890,9 +957,9 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
       try {
         await execAsync(cityTapCommand);
 
-        await new Promise((resolve) => setTimeout(resolve, 150));
+        // await new Promise((resolve) => setTimeout(resolve, 150));
 
-        await execAsync(cityTapCommand);
+        // await execAsync(cityTapCommand);
 
         await new Promise((resolve) => setTimeout(resolve, 800));
 
@@ -1084,19 +1151,6 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
   }
 }
 
-schedule.scheduleJob("0 1 * * *", () => {
-  console.log("Running scheduled RoK app refresh...");
-
-  const channel = client.channels.cache.get(process.env.DISCORD_CHANNEL_ID);
-  if (channel) {
-    refreshApp(channel);
-  } else {
-    console.error(
-      "Failed to find the Discord channel for app refresh notification."
-    );
-  }
-});
-
 async function handleTitleRequest(
   userId,
   title,
@@ -1156,6 +1210,7 @@ async function handleTitleRequest(
           },
         };
         await interaction.reply({ embeds: [embed] });
+        if (userId) lastUserRequest[userId] = null;
       } else {
         console.log(`Title \"${title}\" is locked for kingdom ${userKingdom}.`);
       }
