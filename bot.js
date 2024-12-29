@@ -1103,19 +1103,14 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
           return;
         }
   
-        // Base delay with slight human-like variance
-        const baseDelay = 300; // Base delay
-        const variance = Math.random() * 200 - 100; // Random variance between -100ms to +100ms
+        const baseDelay = 150;
+        const variance = Math.random() * 80 - 40; 
         let randomDelay = baseDelay + variance;
   
-        // Introduce occasional longer delays every 3-5 commands
         if ((index + 1) % 4 === 0) {
-          randomDelay += Math.random() * 500 + 300; // Add extra 300-800ms
-          console.log("Taking a slightly longer pause for natural timing...");
+          randomDelay += Math.random() * 300 + 100;
         }
-  
-        console.log(`Executing next command after ${Math.round(randomDelay)} ms`);
-  
+    
         setTimeout(() => {
           executeCommandWithDelay(commands, index + 1)
             .then(resolve)
@@ -1123,7 +1118,7 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
         }, randomDelay);
       });
     });
-  }
+  }  
   
   try {
     await executeCommandWithDelay(initialCommands, 0);
