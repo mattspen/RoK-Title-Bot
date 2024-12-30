@@ -17,6 +17,8 @@ import {
 import { fetchCustomDurationFromDatabase } from "./helpers/fetchCustomDurationFromDatabase.js";
 import schedule from "node-schedule";
 import { runCheckState } from "./helpers/checkState.js";
+import startTimer from "./helpers/startTimer.js";
+import execAsync from "./helpers/execAsync.js";
 
 dotenv.config({
   path: process.env.ENV_FILE || ".env",
@@ -167,12 +169,10 @@ client.on("messageCreate", async (message) => {
       const titleInput = args[1].toLowerCase();
       const kingdom = process.env.KINGDOM;
 
-      // Normalize the title input to the canonical title using titleMappings
       const normalizedTitle = Object.keys(titleMappings).find((key) =>
         titleMappings[key].includes(titleInput)
       );
 
-      // Validate title
       if (!normalizedTitle) {
         await message.reply(
           `Invalid title. Only the following titles can be locked: ${validTitles.join(
@@ -230,7 +230,6 @@ client.on("messageCreate", async (message) => {
       const titleInput = args[1].toLowerCase();
       const kingdom = process.env.KINGDOM;
 
-      // Normalize the title input to the canonical title using titleMappings
       const normalizedTitle = Object.keys(titleMappings).find((key) =>
         titleMappings[key].includes(titleInput)
       );
@@ -247,12 +246,12 @@ client.on("messageCreate", async (message) => {
 
       const lockedTitle = await LockedTitle.findOneAndUpdate(
         { title: normalizedTitle, kingdom },
-        { isLocked: false, lockedBy: null, lockedAt: null }, // Reset lockedBy and lockedAt
+        { isLocked: false, lockedBy: null, lockedAt: null },
         { new: true }
       );
 
       const embed = {
-        color: 0x00ff00, // Green color for unlock
+        color: 0x00ff00, // Green
         title: `🔓 Title Unlocked`,
         description: lockedTitle
           ? `The title "${normalizedTitle}" has been successfully unlocked for kingdom ${kingdom}.`
@@ -555,8 +554,6 @@ setInterval(() => {
 
   if (!isAnyAdbRunning && !isAdbRunningGlobal) {
     runCheckState();
-  } else {
-    console.log("ADB functions are currently running. Skipping runCheckState.");
   }
 }, 20000);
 
@@ -743,39 +740,6 @@ async function processQueue(title) {
   processGlobalAdbQueue();
 }
 
-function startTimer(collector, remainingTime, title, userId) {
-  let timer = setInterval(() => {
-    remainingTime -= 1;
-    if (remainingTime <= 0) {
-      clearInterval(timer);
-      if (collector && !collector.ended) {
-        collector.stop();
-      }
-    } else {
-      if (remainingTime % 30 === 0) {
-        console.log(
-          `User ${userId} has ${remainingTime} seconds remaining for the title "${title}".`
-        );
-      }
-    }
-  }, 1000);
-  return timer;
-}
-
-function execAsync(command) {
-  return new Promise((resolve, reject) => {
-    exec(command, (error, stdout, stderr) => {
-      if (error) {
-        return reject(error);
-      }
-      if (stderr) {
-        console.error(`stderr: ${stderr}`);
-      }
-      resolve(stdout);
-    });
-  });
-}
-
 async function runAdbCommand(x, y, title, isLostKingdom) {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
 
@@ -881,10 +845,6 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
       try {
         await execAsync(cityTapCommand);
 
-        // await new Promise((resolve) => setTimeout(resolve, 150));
-
-        // await execAsync(cityTapCommand);
-
         await new Promise((resolve) => setTimeout(resolve, 800));
 
         const screenshotFilename = `./temp/screenshot_${attempt}_${deviceId}.png`;
@@ -945,9 +905,7 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
         if (titleCheckResult.success) {
           console.log("City button found!");
           return { success: true, coordinates: titleCheckResult.coordinates };
-        } else {
-          console.log("City button not found, trying next coordinate.");
-        }
+        } 
       } catch (error) {
         console.error(
           `Error tapping city or taking screenshot: ${error.message}`
@@ -1041,8 +999,6 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
     await executeCommandWithDelay(initialCommands, 0);
     if (isCurrentlyInLostKingdom !== isLostKingdom) {
       await new Promise((resolve) => setTimeout(resolve, 10000));
-    } else {
-      console.log("No delay as both Lost Kingdom statuses are the same.");
     }
 
     await new Promise((resolve) => setTimeout(resolve, 400));
