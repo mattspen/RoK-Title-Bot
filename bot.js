@@ -51,9 +51,7 @@ client.once("ready", async () => {
     );
 
     try {
-      // Set bot nickname for the guild
       await guild.members.me.setNickname("Title Oracle 🔮");
-      console.log(`Nickname updated successfully in ${guild.name}`);
     } catch (error) {
       console.error(
         `Failed to update nickname in ${guild.name}:`,
@@ -64,72 +62,72 @@ client.once("ready", async () => {
 });
 
 
-const allTitles = ["Duke", "Justice", "Architect", "Scientist"];
+// const allTitles = ["Duke", "Justice", "Architect", "Scientist"];
 
-schedule.scheduleJob("0 1 * * *", async () => {
-  try {
-    const channel = client.channels.cache.get(process.env.DISCORD_CHANNEL_ID);
-    const kingdom = process.env.KINGDOM;
+// schedule.scheduleJob("0 1 * * *", async () => {
+//   try {
+//     const channel = client.channels.cache.get(process.env.DISCORD_CHANNEL_ID);
+//     const kingdom = process.env.KINGDOM;
 
-    if (!channel) {
-      console.error("Failed to find the specified Discord channel.");
-      return;
-    }
+//     if (!channel) {
+//       console.error("Failed to find the specified Discord channel.");
+//       return;
+//     }
 
-    // Lock all titles
-    for (const title of allTitles) {
-      await LockedTitle.findOneAndUpdate(
-        { title, kingdom },
-        { isLocked: true, lockedBy: "system", lockedAt: new Date() },
-        { upsert: true }
-      );
-    }
-    console.log("All titles locked.");
+//     // Lock all titles
+//     for (const title of allTitles) {
+//       await LockedTitle.findOneAndUpdate(
+//         { title, kingdom },
+//         { isLocked: true, lockedBy: "system", lockedAt: new Date() },
+//         { upsert: true }
+//       );
+//     }
+//     console.log("All titles locked.");
 
-    // Send the initial embed
-    const refreshEmbed = {
-      color: 0xffa500, // Orange color for the embed
-      title: "🔄 Refreshing Rise of Kingdoms",
-      description:
-      "We are refreshing Rise of Kingdoms. Please wait for 3 minutes before making any requests.",
-      footer: {
-      text: "🔮Title Oracle",
-      },
-      timestamp: new Date(),
-    };
+//     // Send the initial embed
+//     const refreshEmbed = {
+//       color: 0xffa500, // Orange color for the embed
+//       title: "🔄 Refreshing Rise of Kingdoms",
+//       description:
+//       "We are refreshing Rise of Kingdoms. Please wait for 3 minutes before making any requests.",
+//       footer: {
+//       text: "🔮Title Oracle",
+//       },
+//       timestamp: new Date(),
+//     };
 
-    await channel.send({ embeds: [refreshEmbed] });
-    console.log("Refresh notification sent to the Discord channel.");
+//     await channel.send({ embeds: [refreshEmbed] });
+//     console.log("Refresh notification sent to the Discord channel.");
 
-    // Wait 5 minutes and send the "ready for requests" embed
-    setTimeout(async () => {
-      // Unlock all titles
-      for (const title of allTitles) {
-        await LockedTitle.findOneAndUpdate(
-          { title, kingdom },
-          { isLocked: false, lockedBy: "Title Oracle", lockedAt: null }, // Reset lockedBy and lockedAt
-          { new: true }
-        );
-      }
-      console.log("All titles unlocked.");
+//     // Wait 5 minutes and send the "ready for requests" embed
+//     setTimeout(async () => {
+//       // Unlock all titles
+//       for (const title of allTitles) {
+//         await LockedTitle.findOneAndUpdate(
+//           { title, kingdom },
+//           { isLocked: false, lockedBy: "Title Oracle", lockedAt: null }, // Reset lockedBy and lockedAt
+//           { new: true }
+//         );
+//       }
+//       console.log("All titles unlocked.");
 
-      const readyEmbed = {
-        color: 0x00ff00, // Green color for the embed
-        title: "✅ Ready for Requests",
-        description: "The bot is now ready to handle your title requests.",
-        footer: {
-          text: "🔮Title Oracle",
-        },
-        timestamp: new Date(),
-      };
+//       const readyEmbed = {
+//         color: 0x00ff00, // Green color for the embed
+//         title: "✅ Ready for Requests",
+//         description: "The bot is now ready to handle your title requests.",
+//         footer: {
+//           text: "🔮Title Oracle",
+//         },
+//         timestamp: new Date(),
+//       };
 
-      await channel.send({ embeds: [readyEmbed] });
-      console.log("Ready notification sent to the Discord channel.");
-    }, 3 * 60 * 1000); // 5 minutes in milliseconds
-  } catch (error) {
-    console.error("Error during refresh process:", error);
-  }
-});
+//       await channel.send({ embeds: [readyEmbed] });
+//       console.log("Ready notification sent to the Discord channel.");
+//     }, 3 * 60 * 1000); // 5 minutes in milliseconds
+//   } catch (error) {
+//     console.error("Error during refresh process:", error);
+//   }
+// });
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
@@ -162,7 +160,7 @@ client.on("messageCreate", async (message) => {
       }
 
       if (args.length < 2) {
-        await message.reply("> Please provide a title to lock.");
+        await message.reply("Please provide a title to lock.");
         return;
       }
 
@@ -262,7 +260,6 @@ client.on("messageCreate", async (message) => {
         fields: [
           { name: "Title", value: normalizedTitle, inline: true },
           { name: "Kingdom", value: kingdom, inline: true },
-          { name: "Unlocked By", value: `<@${userId}>`, inline: true },
         ],
         footer: {
           text: `Unlocked by ${message.author.username}`,
@@ -270,75 +267,6 @@ client.on("messageCreate", async (message) => {
         },
         timestamp: new Date(),
       };
-
-      await message.reply({ embeds: [embed] });
-      return;
-    }
-
-    if (args[0].toLowerCase() === "register") {
-      if (args.length < 3) {
-        const embed = {
-          color: 0xff0000,
-          title: "⚠️ Missing Coordinates",
-          description:
-            "Please provide coordinates in the format: `register <x> <y>`.",
-          footer: {
-            text: `Requested by ${message.author.username}`,
-            icon_url: message.author.displayAvatarURL(),
-          },
-          timestamp: new Date(),
-        };
-        await message.reply({ embeds: [embed] });
-        return;
-      }
-
-      const isUsernamePresent = isNaN(args[1]);
-      const x = parseInt(isUsernamePresent ? args[2] : args[1], 10);
-      const y = parseInt(isUsernamePresent ? args[3] : args[2], 10);
-
-      if (isNaN(x) || isNaN(y)) {
-        const embed = {
-          color: 0xff0000,
-          title: "⚠️ Invalid Coordinates",
-          description: "Please enter valid numbers for x and y.",
-          footer: {
-            text: `Requested by ${message.author.username}`,
-            icon_url: message.author.displayAvatarURL(),
-          },
-          timestamp: new Date(),
-        };
-        await message.reply({ embeds: [embed] });
-        return;
-      }
-
-      const userId = message.author.id;
-      const kingdom = parseInt(process.env.KINGDOM, 10);
-      const user = await User.findOne({ userId });
-
-      const embed = {
-        color: 0xadd8e6, // Light blue color for the embed
-        title: "📍 Registration",
-        description: `Kingdom: **${kingdom}**\nCoordinates: **(${x}, ${y})**`,
-        timestamp: new Date(),
-        footer: {
-          text: `Requested by ${message.author.username}`,
-          icon_url: message.author.displayAvatarURL(),
-        },
-      };
-
-      if (user) {
-        // Update existing user
-        user.kingdom = kingdom;
-        user.x = x;
-        user.y = y;
-        await user.save();
-        embed.description = `✅ Your details have been updated:\n\n${embed.description}`;
-      } else {
-        // Register new user
-        const newUser = new User({ userId, kingdom, x, y });
-        await newUser.save();
-        embed.description = `🎉 You have been registered:\n\n${embed.description}`;
-      }
 
       await message.reply({ embeds: [embed] });
       return;
@@ -399,7 +327,7 @@ client.on("messageCreate", async (message) => {
       }
 
       if (!title) {
-        await message.reply("> Invalid title specified.");
+        await message.reply("Invalid title specified.");
         return;
       }
 
@@ -412,11 +340,11 @@ client.on("messageCreate", async (message) => {
 
         if (result.upsertedCount > 0) {
           await message.reply(
-            `> Timer for ${title} has been set to ${duration} seconds in kingdom ${kingdom}.`
+            `Timer for ${title} has been set to ${duration} seconds in kingdom ${kingdom}.`
           );
         } else {
           await message.reply(
-            `> Timer for ${title} has been updated to ${duration} seconds in kingdom ${kingdom}.`
+            `Timer for ${title} has been updated to ${duration} seconds in kingdom ${kingdom}.`
           );
         }
       } catch (error) {
@@ -426,18 +354,18 @@ client.on("messageCreate", async (message) => {
         );
         if (error.code === 11000) {
           await message.reply(
-            "> Duplicate entry detected. Please check if the title already exists for the specified kingdom."
+            "Duplicate entry detected. Please check if the title already exists for the specified kingdom."
           );
         } else {
           await message.reply(
-            "> An unexpected error occurred while setting the timer."
+            "An unexpected error occurred while setting the timer."
           );
         }
       }
       return;
     }
 
-    if (args[0].toLowerCase() === "restartapp") {
+    if (args[0].toLowerCase() === "resetbot") {
       const superUserIds = process.env.SUPERUSER_ID.split(",").map((id) =>
         id.trim()
       );
@@ -585,14 +513,12 @@ client.on("messageCreate", async (message) => {
       await user.save();
       const embed = {
         color: 0xadd8e6,
-        title: "📍 Registration Successful",
-        description: `You have been registered with coordinates **(${x}, ${y})** in Kingdom **${kingdom}**.`,
         timestamp: new Date(),
         footer: {
-          text: `Requested by ${message.author.username}`,
+          text: `📍 Registration Successful: You have been registered with coordinates (${x}, ${y}) in Kingdom ${kingdom}.`,
           icon_url: message.author.displayAvatarURL(),
         },
-      };
+      };      
 
       await message.reply({ embeds: [embed] });
     } else {
@@ -639,7 +565,6 @@ let isAdbRunningGlobal = false;
 
 async function processGlobalAdbQueue() {
   if (isAdbRunningGlobal || adbQueue.length === 0) {
-    console.log("Global ADB queue is empty or ADB is already running.");
     return;
   }
 
@@ -853,7 +778,6 @@ function execAsync(command) {
 
 async function runAdbCommand(x, y, title, isLostKingdom) {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
-  console.log(`Coordinates: ${x} ${y}`);
 
     const stateCheckResult = await new Promise((resolve) => {
     exec(
@@ -1062,27 +986,20 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
   const randomX5 = Math.floor(Math.random() * (1350 - 1295 + 1)) + 1295; // Random X5 between 1295 and 1350
   const randomY5 = Math.floor(Math.random() * (240 - 195 + 1)) + 195; // Use the same Y as randomY3 (195-240)
 
-  // Initialize the commands array here before use
   const initialCommands = [
     `adb -s ${deviceId} shell input tap ${randomX1} ${randomY1}`, // Magnifying tap
   ];
-
-  if (isLostKingdom) {
+  
+  if (isCurrentlyInLostKingdom !== isLostKingdom) {
     initialCommands.push(
       `adb -s ${deviceId} shell input tap ${lostKingdomX} ${lostKingdomY}`, // Tap for Lost Kingdom
       ...Array(6).fill(`adb -s ${deviceId} shell input keyevent 67`), // Backspace 6 times
-      `adb -s ${deviceId} shell input text "${process.env.LOSTKINGDOM}"` // Input kingdom text
-    );
-  } else {
-    initialCommands.push(
-      `adb -s ${deviceId} shell input tap ${lostKingdomX} ${lostKingdomY}`, // Tap for Lost Kingdom
-      ...Array(6).fill(`adb -s ${deviceId} shell input keyevent 67`), // Backspace 6 times
-      `adb -s ${deviceId} shell input text "${process.env.KINGDOM}"` // Input kingdom text
+      `adb -s ${deviceId} shell input text "${isLostKingdom ? process.env.LOSTKINGDOM : process.env.KINGDOM}"`, // Input kingdom text
+      `adb -s ${deviceId} shell input tap ${randomX3} ${randomY3}` // X tap
     );
   }
-
+  
   initialCommands.push(
-    `adb -s ${deviceId} shell input tap ${randomX3} ${randomY3}`, // X tap
     `adb -s ${deviceId} shell input tap ${randomX3} ${randomY3}`, // X tap
     `adb -s ${deviceId} shell input text "${x}"`, // X paste
     `adb -s ${deviceId} shell input tap ${randomX4} ${randomY4}`, // Y tap to remove keyboard
