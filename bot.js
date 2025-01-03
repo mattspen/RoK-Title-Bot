@@ -959,13 +959,14 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
   
   initialCommands.push(
     `adb -s ${deviceId} shell input tap ${randomX3} ${randomY3}`, // X tap
-    `adb -s ${deviceId} shell input text "${x}"`, // X paste
-    `adb -s ${deviceId} shell input tap ${randomX4} ${randomY4}`, // Y tap to remove keyboard
+    ...Array.from(x.toString()).map((char) => `adb -s ${deviceId} shell input text "${char}"`), // Type each character of X
     `adb -s ${deviceId} shell input tap ${randomX4} ${randomY4}`, // Y tap
-    `adb -s ${deviceId} shell input text "${y}"`, // Y paste
+    `adb -s ${deviceId} shell input tap ${randomX4} ${randomY4}`, // Y tap again
+    ...Array.from(y.toString()).map((char) => `adb -s ${deviceId} shell input text "${char}"`), // Type each character of Y
     `adb -s ${deviceId} shell input tap ${randomX5} ${randomY5}`, // Magnifying tap to remove keyboard
     `adb -s ${deviceId} shell input tap ${randomX5} ${randomY5}` // Magnifying tap to do search
   );
+  
 
   async function executeCommandWithDelay(commands, index) {
     if (index >= commands.length) return Promise.resolve();
