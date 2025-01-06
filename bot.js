@@ -1171,6 +1171,7 @@ function executeOCRScript() {
 
     try {
       const results = JSON.parse(stdout.trim() || "[]"); // Handle empty stdout
+
       if (results.length === 0) {
         // Retry after a delay
         setTimeout(executeOCRScript, 5000);
@@ -1178,6 +1179,7 @@ function executeOCRScript() {
       }
 
       results.forEach(async (result) => {
+        console.log(result)
         const { title, x, y, isLostKingdom } = result;
         const uniqueId = `${title}-${x}-${y}-${isLostKingdom}`;
 

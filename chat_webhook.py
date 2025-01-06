@@ -74,7 +74,7 @@ def perform_ocr(image_path):
 
         # Flexible regex pattern to match titles with extra text after them
         matches = re.findall(
-            r'(Duke|Justice|Scientist|Architect)\b.*?\(#(C\d+)\s*X[:.]?(\d+)\s*Y[:.]?(\d+)\)', 
+            r'(duke|justice|scientist|architect)\b.*?\(#([A-Za-z0-9]+)\s*X[:.]?(\d+)\s*Y[:.]?(\d+)\)', 
             corrected_text,
             re.IGNORECASE
         )
