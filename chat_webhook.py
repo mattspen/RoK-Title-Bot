@@ -5,6 +5,8 @@ import pytesseract
 import re
 import json
 import sys
+from PIL import Image
+import time
 
 # Set up paths
 output_dir = "temp"
@@ -22,15 +24,12 @@ processed_results = set()
 
 def capture_screenshot(device_id, output_path):
     """Capture screenshot from the emulator with retries."""
-    from PIL import Image
-    import time
-    
     max_retries = 3
     for attempt in range(max_retries):
         try:
             time.sleep(1)  # Allow device to stabilize
             subprocess.run(
-                ["adb", "-s", device_id, "exec-out", "screencap", "-p"], 
+                ["adb", "-s", device_id, "exec-out", "screencap", "-p"],
                 stdout=open(output_path, "wb"),
                 check=True
             )
@@ -61,12 +60,12 @@ def preprocess_image(image_path, cropped_path):
     """Crop the image to the specified coordinates for faster OCR."""
     image = cv2.imread(image_path)
     if image is None:
-        raise ValueError(f"Failed to read image from {image_path}. The file may be corrupted or missing.")
-
-    cropped_image = image[957:1075, 265:928]  # Ensure correct cropping region
+        raise FileNotFoundError(f"Unable to read image at {image_path}. Check the file path and integrity.")
+    
+    cropped_image = image[1005:1068, 258:959]  # Correct coordinates
     cv2.imwrite(cropped_path, cropped_image)
 
-def perform_ocr(image_path):
+def perform_ocr(image_path, kingdom, lost_kingdom):
     """Perform OCR on the cropped image using Tesseract and format the results."""
     try:
         ocr_text = pytesseract.image_to_string(image_path, lang='eng')
@@ -85,7 +84,14 @@ def perform_ocr(image_path):
             kd = match[1]
             x_coord = match[2]
             y_coord = match[3]
-            is_lost_kingdom = kd.startswith("C")
+
+            # Extract numeric portion of the kingdom ID for comparison
+            numeric_kd = re.sub(r'[^0-9]', '', kd)
+            numeric_lost_kingdom = re.sub(r'[^0-9]', '', lost_kingdom)
+
+            # Determine if it's the lost kingdom
+            is_lost_kingdom = numeric_kd == numeric_lost_kingdom
+            
             result = {
                 "title": title,
                 "kingdom": kd,
@@ -105,13 +111,17 @@ def main():
     """Main function to capture, process, and return OCR results."""
     global processed_results
     try:
-        device_id = sys.argv[1]  # Get device ID from command-line arguments
+        # Get arguments from command-line
+        device_id = sys.argv[1]
+        kingdom = sys.argv[2]
+        lost_kingdom = sys.argv[3]
+        
         screenshot_path = get_screenshot_path(device_id)
         cropped_path = get_cropped_path(device_id)
 
         capture_screenshot(device_id, screenshot_path)
         preprocess_image(screenshot_path, cropped_path)
-        results = perform_ocr(cropped_path)
+        results = perform_ocr(cropped_path, kingdom, lost_kingdom)
 
         # Output only new results to Node.js
         if results:

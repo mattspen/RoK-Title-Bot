@@ -741,6 +741,7 @@ async function processQueue(title) {
 }
 
 async function runAdbCommand(x, y, title, isLostKingdom) {
+  console.log('run adb comamnd', x, y, title, isLostKingdom)
   const deviceId = process.env.EMULATOR_DEVICE_ID;
 
     const stateCheckResult = await new Promise((resolve) => {
@@ -1140,7 +1141,7 @@ async function handleTitleRequest(
   }
 }
 
-const processedResults = new Set();
+const processedResults = []; // Array to maintain the last 3 entries
 let isScriptRunning = false;
 
 function executeOCRScript() {
@@ -1152,39 +1153,41 @@ function executeOCRScript() {
   isScriptRunning = true;
   const deviceId = process.env.EMULATOR_DEVICE_ID;
 
-  execFile("python", ["chat_webhook.py", deviceId], (error, stdout, stderr) => {
+  execFile("python", ["chat_webhook.py", deviceId, process.env.KINGDOM, process.env.LOSTKINGDOM], (error, stdout, stderr) => {
     isScriptRunning = false; // Mark script as no longer running
 
     if (error) {
       console.error(`Error executing Python script: ${error.message}`);
-      // Retry after a delay even on errors
       setTimeout(executeOCRScript, 5000);
       return;
     }
 
     if (stderr) {
       console.error(`Python stderr: ${stderr}`);
-      // Retry after a delay even on errors
       setTimeout(executeOCRScript, 5000);
       return;
     }
 
     try {
-      const results = JSON.parse(stdout.trim() || "[]"); // Handle empty stdout
+      const results = JSON.parse(stdout.trim() || "[]");
 
       if (results.length === 0) {
-        // Retry after a delay
         setTimeout(executeOCRScript, 5000);
         return;
       }
 
       results.forEach(async (result) => {
-        console.log(result)
         const { title, x, y, isLostKingdom } = result;
         const uniqueId = `${title}-${x}-${y}-${isLostKingdom}`;
 
-        if (!processedResults.has(uniqueId)) {
-          processedResults.add(uniqueId);
+        if (!processedResults.includes(uniqueId)) {
+          // Add the new entry to the end
+          processedResults.push(uniqueId);
+
+          // Ensure only the last 3 entries are kept
+          if (processedResults.length > 3) {
+            processedResults.shift(); // Remove the oldest entry
+          }
 
           // Call handleTitleRequest
           await handleTitleRequest(
@@ -1200,11 +1203,10 @@ function executeOCRScript() {
         }
       });
 
-      // After processing results, re-execute after delay
+      // Re-execute after delay
       setTimeout(executeOCRScript, 5000);
     } catch (parseError) {
       console.error("Error parsing Python script output:", parseError.message);
-      // Retry after a delay
       setTimeout(executeOCRScript, 5000);
     }
   });

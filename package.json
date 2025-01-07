@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "3299": "cross-env ENV_FILE=.3299.env node bot.js",
-    "3052": "cross-env ENV_FILE=.3052.env node bot.js"
+    "3052": "cross-env ENV_FILE=.3052.env node bot.js",
+    "3257": "cross-env ENV_FILE=.3257.env node bot.js"
+
   },
   "dependencies": {
     "@techstark/opencv-js": "^4.10.0-release.1",
