@@ -1141,7 +1141,7 @@ async function handleTitleRequest(
   }
 }
 
-const processedResults = []; // Array to maintain the last 3 entries
+let lastProcessedResult = null; // Variable to store the last processed entry
 let isScriptRunning = false;
 
 function executeOCRScript() {
@@ -1180,14 +1180,9 @@ function executeOCRScript() {
         const { title, x, y, isLostKingdom } = result;
         const uniqueId = `${title}-${x}-${y}-${isLostKingdom}`;
 
-        if (!processedResults.includes(uniqueId)) {
-          // Add the new entry to the end
-          processedResults.push(uniqueId);
-
-          // Ensure only the last 3 entries are kept
-          if (processedResults.length > 3) {
-            processedResults.shift(); // Remove the oldest entry
-          }
+        if (lastProcessedResult !== uniqueId) {
+          // Update the last processed entry
+          lastProcessedResult = uniqueId;
 
           // Call handleTitleRequest
           await handleTitleRequest(

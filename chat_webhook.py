@@ -62,7 +62,7 @@ def preprocess_image(image_path, cropped_path):
     if image is None:
         raise FileNotFoundError(f"Unable to read image at {image_path}. Check the file path and integrity.")
     
-    cropped_image = image[1005:1068, 258:959]  # Correct coordinates
+    cropped_image = image[1037:1068, 258:959]  # Correct coordinates
     cv2.imwrite(cropped_path, cropped_image)
 
 def perform_ocr(image_path, kingdom, lost_kingdom):
