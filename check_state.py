@@ -16,7 +16,7 @@ def check_state(screenshot_path, device_id):
 
     # Define template paths
     template_paths = ['./resources/exit.png', 
-                      './resources/exit2.png', './resources/elimination_button_exit.png', './resources/notice_board_exit.png', './resources/home_screen.png']
+                      './resources/exit2.png', './resources/elimination_button_exit.png', './resources/notice_board_exit.png', './resources/home_screen.png', './resources/continue_button.png' ]
 
     # Initialize variables to store the best match
     best_match = {
@@ -45,7 +45,7 @@ def check_state(screenshot_path, device_id):
             best_match["confidence"] = max_val
 
         # If exit.png or notice_board_exit.png is found, return the coordinates immediately
-        if template_path in ['./resources/exit.png', './resources/exit2.png', 
+        if template_path in ['./resources/exit.png', './resources/exit2.png', './resources/continue_button.png', 
                              './resources/notice_board_exit.png', './resources/elimination_button_exit.png'] and best_match["match"]:
             click_exit_button(device_id, best_match["location"], template.shape[:2])  # Click the exit button
             

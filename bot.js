@@ -741,46 +741,45 @@ async function processQueue(title) {
 }
 
 async function runAdbCommand(x, y, title, isLostKingdom) {
-  console.log('run adb comamnd', x, y, title, isLostKingdom)
   const deviceId = process.env.EMULATOR_DEVICE_ID;
 
-    const stateCheckResult = await new Promise((resolve) => {
-    exec(
-      `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
-      (error) => {
-        if (error) {
-          console.error(
-            `Error taking screenshot on ${deviceId}: ${error.message}`
-          );
-          resolve({ success: false, error: "Screenshot error" });
-          return;
-        }
-        exec(
-          `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
-          (error, stdout, stderr) => {
-            if (error) {
-              console.error(`Error running check_state.py: ${error.message}`);
-              resolve({
-                success: false,
-                error: "State check script execution error",
-              });
-              return;
-            }
-            if (stderr) {
-              console.error(`Stderr from check_state.py: ${stderr}`);
-              resolve({ success: false, error: "State check script stderr" });
-              return;
-            }
-            resolve({ success: true });
-          }
-        );
-      }
-    );
-  });
+  //   const stateCheckResult = await new Promise((resolve) => {
+  //   exec(
+  //     `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
+  //     (error) => {
+  //       if (error) {
+  //         console.error(
+  //           `Error taking screenshot on ${deviceId}: ${error.message}`
+  //         );
+  //         resolve({ success: false, error: "Screenshot error" });
+  //         return;
+  //       }
+  //       exec(
+  //         `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
+  //         (error, stdout, stderr) => {
+  //           if (error) {
+  //             console.error(`Error running check_state.py: ${error.message}`);
+  //             resolve({
+  //               success: false,
+  //               error: "State check script execution error",
+  //             });
+  //             return;
+  //           }
+  //           if (stderr) {
+  //             console.error(`Stderr from check_state.py: ${stderr}`);
+  //             resolve({ success: false, error: "State check script stderr" });
+  //             return;
+  //           }
+  //           resolve({ success: true });
+  //         }
+  //       );
+  //     }
+  //   );
+  // });
 
-  if (!stateCheckResult.success) {
-    return stateCheckResult;
-  }
+  // if (!stateCheckResult.success) {
+  //   return stateCheckResult;
+  // }
 
   const isCurrentlyInLostKingdom = await new Promise((resolve) => {
     exec(
@@ -1141,8 +1140,20 @@ async function handleTitleRequest(
   }
 }
 
-let lastProcessedResult = null; // Variable to store the last processed entry
+let processedResults = {}; // Object to store unique IDs with their timestamps
 let isScriptRunning = false;
+const EXPIRY_TIME = 24 * 60 * 60 * 1000; // 24 hours
+
+function cleanupOldResults() {
+  const currentTime = Date.now();
+
+  // Remove processed results older than EXPIRY_TIME
+  for (const uniqueId in processedResults) {
+    if (currentTime - processedResults[uniqueId] > EXPIRY_TIME) {
+      delete processedResults[uniqueId];
+    }
+  }
+}
 
 function executeOCRScript() {
   if (isScriptRunning) {
@@ -1180,9 +1191,9 @@ function executeOCRScript() {
         const { title, x, y, isLostKingdom } = result;
         const uniqueId = `${title}-${x}-${y}-${isLostKingdom}`;
 
-        if (lastProcessedResult !== uniqueId) {
-          // Update the last processed entry
-          lastProcessedResult = uniqueId;
+        if (!processedResults[uniqueId]) {
+          // Mark as processed with the current timestamp
+          processedResults[uniqueId] = Date.now();
 
           // Call handleTitleRequest
           await handleTitleRequest(
@@ -1197,6 +1208,9 @@ function executeOCRScript() {
           console.log(`Handled title request for "${title}" at (${x}, ${y}).`);
         }
       });
+
+      // Clean up old results before the next execution
+      cleanupOldResults();
 
       // Re-execute after delay
       setTimeout(executeOCRScript, 5000);
