@@ -63,74 +63,6 @@ client.once("ready", async () => {
   });
 });
 
-
-// const allTitles = ["Duke", "Justice", "Architect", "Scientist"];
-
-// schedule.scheduleJob("0 1 * * *", async () => {
-//   try {
-//     const channel = client.channels.cache.get(process.env.DISCORD_CHANNEL_ID);
-//     const kingdom = process.env.KINGDOM;
-
-//     if (!channel) {
-//       console.error("Failed to find the specified Discord channel.");
-//       return;
-//     }
-
-//     // Lock all titles
-//     for (const title of allTitles) {
-//       await LockedTitle.findOneAndUpdate(
-//         { title, kingdom },
-//         { isLocked: true, lockedBy: "system", lockedAt: new Date() },
-//         { upsert: true }
-//       );
-//     }
-//     console.log("All titles locked.");
-
-//     // Send the initial embed
-//     const refreshEmbed = {
-//       color: 0xffa500, // Orange color for the embed
-//       title: "🔄 Refreshing Rise of Kingdoms",
-//       description:
-//       "We are refreshing Rise of Kingdoms. Please wait for 3 minutes before making any requests.",
-//       footer: {
-//       text: "🔮Title Oracle",
-//       },
-//       timestamp: new Date(),
-//     };
-
-//     await channel.send({ embeds: [refreshEmbed] });
-//     console.log("Refresh notification sent to the Discord channel.");
-
-//     // Wait 5 minutes and send the "ready for requests" embed
-//     setTimeout(async () => {
-//       // Unlock all titles
-//       for (const title of allTitles) {
-//         await LockedTitle.findOneAndUpdate(
-//           { title, kingdom },
-//           { isLocked: false, lockedBy: "Title Oracle", lockedAt: null }, // Reset lockedBy and lockedAt
-//           { new: true }
-//         );
-//       }
-//       console.log("All titles unlocked.");
-
-//       const readyEmbed = {
-//         color: 0x00ff00, // Green color for the embed
-//         title: "✅ Ready for Requests",
-//         description: "The bot is now ready to handle your title requests.",
-//         footer: {
-//           text: "🔮Title Oracle",
-//         },
-//         timestamp: new Date(),
-//       };
-
-//       await channel.send({ embeds: [readyEmbed] });
-//       console.log("Ready notification sent to the Discord channel.");
-//     }, 3 * 60 * 1000); // 5 minutes in milliseconds
-//   } catch (error) {
-//     console.error("Error during refresh process:", error);
-//   }
-// });
-
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
   if (message.channel.id !== process.env.DISCORD_CHANNEL_ID) return;
@@ -155,9 +87,7 @@ client.on("messageCreate", async (message) => {
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
-        await message.reply(
-          "You do not have permission to use this command."
-        );
+        await message.reply("You do not have permission to use this command.");
         return;
       }
 
@@ -216,9 +146,7 @@ client.on("messageCreate", async (message) => {
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
-        await message.reply(
-          "You do not have permission to use this command."
-        );
+        await message.reply("You do not have permission to use this command.");
         return;
       }
 
@@ -371,9 +299,7 @@ client.on("messageCreate", async (message) => {
       const userId = message.author.id;
 
       if (!superUserIds.includes(userId)) {
-        await message.reply(
-          "You do not have permission to use this command."
-        );
+        await message.reply("You do not have permission to use this command.");
         return;
       }
 
@@ -517,7 +443,7 @@ client.on("messageCreate", async (message) => {
           text: `📍 Registration Successful: You have been registered with coordinates (${x}, ${y}) in Kingdom ${kingdom}.`,
           icon_url: message.author.displayAvatarURL(),
         },
-      };      
+      };
 
       await message.reply({ embeds: [embed] });
     } else {
@@ -672,56 +598,89 @@ async function processGlobalAdbQueue() {
       }, remainingTime * 1000);
     }
   } catch (error) {
-    const deviceId = process.env.EMULATOR_DEVICE_ID;
-    const screenshotPath = `./temp/screenshot_city_not_found_${deviceId}.png`;
-    console.log(error);
-
-    if (request?.userId) {
-      try {
-        const user = await User.findOne({ userId: request.userId });
-        if (user) {
-          const coordinatesMessage =
-            user.x && user.y
-              ? `I have the coordinates X: ${user.x}, Y: ${user.y}, but I couldn't locate your city.`
-              : `I lost your coords. Please try again`;
-
-          if (request.interaction?.channel) {
-            const embed = {
-              color: 0xff0000,
-              title: "Error: City Not Found",
-              description: `<@${request.userId}>, ${coordinatesMessage}`,
-              image: {
-                url: `attachment://${screenshotPath.split("/").pop()}`,
-              },
-            };
-
-            await request.interaction.channel.send({
-              embeds: [embed],
-              files: [{ attachment: screenshotPath }],
-            });
-          } else {
-            const discordUser = await client.users.fetch(request.userId);
-            if (discordUser) {
-              await discordUser.send(
-                `<@${request.userId}>, ${coordinatesMessage}`
-              );
-            }
-          }
+    // Check specifically for the negative title error
+    if (error.message === "Negative title detected.") {
+      if (request?.interaction?.channel && request?.userId) {
+        // We have an interaction and a userId, so mention the user in the channel
+        await request.interaction.channel.send(
+          `<@${request.userId}>, negative title detected, unable to grant title.`
+        );
+      } else if (request?.userId) {
+        // We have a userId but no channel interaction (e.g., direct chat request), attempt DM
+        const discordUser = await client.users
+          .fetch(request.userId)
+          .catch(() => null);
+        if (discordUser) {
+          await discordUser.send(
+            "Negative title detected, unable to grant title."
+          );
         }
-      } catch (lookupError) {
-        console.error(
-          "Failed to lookup user or send notification:",
-          lookupError
+      } else {
+        // No userId at all, do nothing
+        console.log(
+          "No user ID provided. Negative title detected, skipping..."
         );
       }
-    } else {
-      console.log("User ID not available, unable to send coordinates.");
-    }
 
-    lastUserRequest[request?.userId] = null;
-    isProcessing[title] = false;
-    isAdbRunning[title] = false;
-    setTimeout(() => processQueue(title), 10000);
+      lastUserRequest[request?.userId] = null;
+      isProcessing[title] = false;
+      isAdbRunning[title] = false;
+      setTimeout(() => processQueue(title), 10000);
+    } else {
+      // Handle other errors here
+      const deviceId = process.env.EMULATOR_DEVICE_ID;
+      const screenshotPath = `./temp/screenshot_city_not_found_${deviceId}.png`;
+      console.log(error);
+
+      if (request?.userId) {
+        try {
+          const user = await User.findOne({ userId: request.userId });
+          if (user) {
+            const coordinatesMessage =
+              user.x && user.y
+                ? `I have the coordinates X: ${user.x}, Y: ${user.y}, but I couldn't locate your city.`
+                : `I lost your coords. Please try again`;
+
+            if (request.interaction?.channel) {
+              const embed = {
+                color: 0xff0000,
+                title: "Error: City Not Found",
+                description: `<@${request.userId}>, ${coordinatesMessage}`,
+                image: {
+                  url: `attachment://${screenshotPath.split("/").pop()}`,
+                },
+              };
+
+              await request.interaction.channel.send({
+                embeds: [embed],
+                files: [{ attachment: screenshotPath }],
+              });
+            } else {
+              const discordUser = await client.users
+                .fetch(request.userId)
+                .catch(() => null);
+              if (discordUser) {
+                await discordUser.send(
+                  `<@${request.userId}>, ${coordinatesMessage}`
+                );
+              }
+            }
+          }
+        } catch (lookupError) {
+          console.error(
+            "Failed to lookup user or send notification:",
+            lookupError
+          );
+        }
+      } else {
+        console.log("User ID not available, unable to send coordinates.");
+      }
+
+      lastUserRequest[request?.userId] = null;
+      isProcessing[title] = false;
+      isAdbRunning[title] = false;
+      setTimeout(() => processQueue(title), 10000);
+    }
   } finally {
     isAdbRunningGlobal = false;
     processGlobalAdbQueue();
@@ -743,43 +702,98 @@ async function processQueue(title) {
 async function runAdbCommand(x, y, title, isLostKingdom) {
   const deviceId = process.env.EMULATOR_DEVICE_ID;
 
-  //   const stateCheckResult = await new Promise((resolve) => {
-  //   exec(
-  //     `adb -s ${deviceId} exec-out screencap -p > ./temp/current_state_${deviceId}.png`,
-  //     (error) => {
-  //       if (error) {
-  //         console.error(
-  //           `Error taking screenshot on ${deviceId}: ${error.message}`
-  //         );
-  //         resolve({ success: false, error: "Screenshot error" });
-  //         return;
-  //       }
-  //       exec(
-  //         `python check_state.py ./temp/current_state_${deviceId}.png ${deviceId}`,
-  //         (error, stdout, stderr) => {
-  //           if (error) {
-  //             console.error(`Error running check_state.py: ${error.message}`);
-  //             resolve({
-  //               success: false,
-  //               error: "State check script execution error",
-  //             });
-  //             return;
-  //           }
-  //           if (stderr) {
-  //             console.error(`Stderr from check_state.py: ${stderr}`);
-  //             resolve({ success: false, error: "State check script stderr" });
-  //             return;
-  //           }
-  //           resolve({ success: true });
-  //         }
-  //       );
-  //     }
-  //   );
-  // });
+  async function tapCityAndCheck() {
+    for (let attempt = 0; attempt < cityCoordinates.length; attempt++) {
+      const { x: cityX, y: cityY } = cityCoordinates[attempt];
+      const cityTapCommand = `adb -s ${deviceId} shell input tap ${cityX} ${cityY}`;
 
-  // if (!stateCheckResult.success) {
-  //   return stateCheckResult;
-  // }
+      try {
+        await execAsync(cityTapCommand);
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        const screenshotFilename = `./temp/screenshot_${attempt}_${deviceId}.png`;
+        const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
+
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await execAsync(screenshotCommand);
+
+        const titleCheckResult = await new Promise((resolve) => {
+          exec(
+            `python ./check_title.py ${screenshotFilename} ${deviceId}`,
+            (error, stdout) => {
+              if (error) {
+                console.error(
+                  `Error executing Python script: ${error.message}`
+                );
+                // If Python script exited with sys.exit(1), we don't get a real error message for "Negative title".
+                // We'll parse stdout to see if "Negative title" is in the JSON output.
+                resolve({ success: false, error: error.message });
+                return;
+              }
+
+              const lines = stdout
+                .split("\n")
+                .filter((line) => line.trim() !== "");
+              const jsonLine = lines[lines.length - 1];
+              let result;
+
+              try {
+                result = JSON.parse(jsonLine.trim());
+              } catch (err) {
+                console.error("Error parsing JSON:", err);
+                resolve({ success: false });
+                return;
+              }
+
+              // Check for negative title error in JSON
+              if (
+                result.error &&
+                result.error.includes("Negative title detected")
+              ) {
+                console.error(
+                  "Negative title detected in the Python script output."
+                );
+                resolve({ success: false, error: result.error });
+                return;
+              }
+
+              if (
+                !result.coordinates ||
+                typeof result.coordinates.x !== "number" ||
+                typeof result.coordinates.y !== "number"
+              ) {
+                console.error("Invalid response structure:", result);
+                resolve({ success: false });
+                return;
+              }
+
+              resolve({ success: true, coordinates: result.coordinates });
+            }
+          );
+        });
+
+        if (titleCheckResult.success) {
+          console.log("City button found!");
+          return { success: true, coordinates: titleCheckResult.coordinates };
+        } else if (
+          titleCheckResult.error &&
+          titleCheckResult.error.includes("Negative title detected")
+        ) {
+          // Stop immediately on negative title
+          return { success: false, error: "Negative title detected" };
+        }
+      } catch (error) {
+        console.error(
+          `Error tapping city or taking screenshot: ${error.message}`
+        );
+      }
+    }
+
+    const screenshotFilename = `./temp/screenshot_city_not_found_${deviceId}.png`;
+    const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
+    await execAsync(screenshotCommand);
+    return { success: false };
+  }
 
   const isCurrentlyInLostKingdom = await new Promise((resolve) => {
     exec(
@@ -789,7 +803,7 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
           console.error(
             `Error taking screenshot on ${deviceId}: ${error.message}`
           );
-          resolve(false); // If screenshot fails, assume not in Lost Kingdom
+          resolve(false);
           return;
         }
         exec(
@@ -799,14 +813,11 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
               console.error(
                 `Error running check_profile_picture.py: ${error.message}`
               );
-              resolve(false); // Assume not in Lost Kingdom if script errors
+              resolve(false);
               return;
             }
-            if (stderr) {
+            if (stderr)
               console.error(`Stderr from check_profile_picture.py: ${stderr}`);
-            }
-
-            // Parse output: the script outputs "True" or "False"
             resolve(stdout.trim().toLowerCase() === "true");
           }
         );
@@ -837,140 +848,52 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
     ],
   };
 
-  async function tapCityAndCheck() {
-    for (let attempt = 0; attempt < cityCoordinates.length; attempt++) {
-      const { x: cityX, y: cityY } = cityCoordinates[attempt];
-      const cityTapCommand = `adb -s ${deviceId} shell input tap ${cityX} ${cityY}`;
-
-      try {
-        await execAsync(cityTapCommand);
-
-        await new Promise((resolve) => setTimeout(resolve, 800));
-
-        const screenshotFilename = `./temp/screenshot_${attempt}_${deviceId}.png`;
-        const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
-
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        await execAsync(screenshotCommand);
-
-        const titleCheckResult = await new Promise((resolve) => {
-          exec(
-            `python ./check_title.py ${screenshotFilename} ${deviceId}`,
-            (error, stdout) => {
-              if (error) {
-                if (error.message.includes("Negative title detected")) {
-                  console.error("Negative title detected in the ADB command.");
-                  resolve({
-                    success: false,
-                    error: error.message,
-                  });
-                  return;
-                }
-                console.error(
-                  `Error executing Python script: ${error.message}`
-                );
-                resolve({ success: false });
-                return;
-              }
-
-              const lines = stdout
-                .split("\n")
-                .filter((line) => line.trim() !== "");
-              let jsonLine = lines[lines.length - 1];
-
-              let result;
-              try {
-                result = JSON.parse(jsonLine.trim());
-              } catch (err) {
-                console.error("Error parsing JSON:", err);
-                resolve({ success: false });
-                return;
-              }
-
-              if (
-                !result.coordinates ||
-                typeof result.coordinates.x !== "number" ||
-                typeof result.coordinates.y !== "number"
-              ) {
-                console.error("Invalid response structure:", result);
-                resolve({ success: false });
-                return;
-              }
-
-              resolve({ success: true, coordinates: result.coordinates });
-            }
-          );
-        });
-
-        if (titleCheckResult.success) {
-          console.log("City button found!");
-          return { success: true, coordinates: titleCheckResult.coordinates };
-        } 
-      } catch (error) {
-        console.error(
-          `Error tapping city or taking screenshot: ${error.message}`
-        );
-      }
-    }
-
-    const screenshotFilename = `./temp/screenshot_city_not_found_${deviceId}.png`;
-    const screenshotCommand = `adb -s ${deviceId} exec-out screencap -p > ${screenshotFilename}`;
-    await execAsync(screenshotCommand);
-    return { success: false };
-  }
-
-  // Define the default range for randomX1
-  let randomX1 = Math.floor(Math.random() * (648 - 415 + 1)) + 415; // Random X1 between 415 and 648
-
-  // If the player is in the Lost Kingdom, adjust the X range for the magnifying glass
+  // Configure random taps, etc...
+  let randomX1 = Math.floor(Math.random() * (648 - 415 + 1)) + 415;
   if (isCurrentlyInLostKingdom) {
-    randomX1 = Math.floor(Math.random() * (334 - 132 + 1)) + 132; // Random X1 between 132 and 334
+    randomX1 = Math.floor(Math.random() * (334 - 132 + 1)) + 132;
   }
-  const randomY1 = Math.floor(Math.random() * (45 - 20 + 1)) + 20; // Random Y1 between 20 and 45
-
-  // 2. Kingdom tap (X: 607-760, Y: 183-226)
-  const lostKingdomX = Math.floor(Math.random() * (735 - 622 + 1)) + 607; // Random X between 607 and 760
-  const lostKingdomY = Math.floor(Math.random() * (240 - 195 + 1)) + 195; // Random Y between 183 and 226
-
-  // 3. X tap (X: 877-999, Y: 195-240)
-  const randomX3 = Math.floor(Math.random() * (999 - 877 + 1)) + 877; // Random X3 between 877 and 999
-  const randomY3 = Math.floor(Math.random() * (240 - 195 + 1)) + 195; // Random Y3 between 195 and 240
-
-  // 4. Y tap (X: 1115-1255, Y: 195-240)
-  const randomX4 = Math.floor(Math.random() * (1255 - 1115 + 1)) + 1115; // Random X4 between 1115 and 1255
-  const randomY4 = Math.floor(Math.random() * (240 - 195 + 1)) + 195; // Use the same Y as randomY3 (195-240)
-
-  // 5. Magnifying glass tap (X: 1295-1350, Y: 195-240)
-  const randomX5 = Math.floor(Math.random() * (1350 - 1295 + 1)) + 1295; // Random X5 between 1295 and 1350
-  const randomY5 = Math.floor(Math.random() * (240 - 195 + 1)) + 195; // Use the same Y as randomY3 (195-240)
+  const randomY1 = Math.floor(Math.random() * (45 - 20 + 1)) + 20;
+  const lostKingdomX = Math.floor(Math.random() * (735 - 622 + 1)) + 607;
+  const lostKingdomY = Math.floor(Math.random() * (240 - 195 + 1)) + 195;
+  const randomX3 = Math.floor(Math.random() * (999 - 877 + 1)) + 877;
+  const randomY3 = Math.floor(Math.random() * (240 - 195 + 1)) + 195;
+  const randomX4 = Math.floor(Math.random() * (1255 - 1115 + 1)) + 1115;
+  const randomY4 = Math.floor(Math.random() * (240 - 195 + 1)) + 195;
+  const randomX5 = Math.floor(Math.random() * (1350 - 1295 + 1)) + 1295;
+  const randomY5 = Math.floor(Math.random() * (240 - 195 + 1)) + 195;
 
   const initialCommands = [
-    `adb -s ${deviceId} shell input tap ${randomX1} ${randomY1}`, // Magnifying tap
+    `adb -s ${deviceId} shell input tap ${randomX1} ${randomY1}`,
   ];
-  
+
   if (isCurrentlyInLostKingdom !== isLostKingdom) {
     initialCommands.push(
-      `adb -s ${deviceId} shell input tap ${lostKingdomX} ${lostKingdomY}`, // Tap for Lost Kingdom
-      ...Array(6).fill(`adb -s ${deviceId} shell input keyevent 67`), // Backspace 6 times
-      `adb -s ${deviceId} shell input text "${isLostKingdom ? process.env.LOSTKINGDOM : process.env.KINGDOM}"`, // Input kingdom text
-      `adb -s ${deviceId} shell input tap ${randomX3} ${randomY3}` // X tap
+      `adb -s ${deviceId} shell input tap ${lostKingdomX} ${lostKingdomY}`,
+      ...Array(6).fill(`adb -s ${deviceId} shell input keyevent 67`),
+      `adb -s ${deviceId} shell input text "${
+        isLostKingdom ? process.env.LOSTKINGDOM : process.env.KINGDOM
+      }"`,
+      `adb -s ${deviceId} shell input tap ${randomX3} ${randomY3}`
     );
   }
-  
+
   initialCommands.push(
-    `adb -s ${deviceId} shell input tap ${randomX3} ${randomY3}`, // X tap
-    ...Array.from(x.toString()).map((char) => `adb -s ${deviceId} shell input text "${char}"`), // Type each character of X
-    `adb -s ${deviceId} shell input tap ${randomX4} ${randomY4}`, // Y tap
-    `adb -s ${deviceId} shell input tap ${randomX4} ${randomY4}`, // Y tap again
-    ...Array.from(y.toString()).map((char) => `adb -s ${deviceId} shell input text "${char}"`), // Type each character of Y
-    `adb -s ${deviceId} shell input tap ${randomX5} ${randomY5}`, // Magnifying tap to remove keyboard
-    `adb -s ${deviceId} shell input tap ${randomX5} ${randomY5}` // Magnifying tap to do search
+    `adb -s ${deviceId} shell input tap ${randomX3} ${randomY3}`,
+    ...Array.from(x.toString()).map(
+      (char) => `adb -s ${deviceId} shell input text "${char}"`
+    ),
+    `adb -s ${deviceId} shell input tap ${randomX4} ${randomY4}`,
+    `adb -s ${deviceId} shell input tap ${randomX4} ${randomY4}`,
+    ...Array.from(y.toString()).map(
+      (char) => `adb -s ${deviceId} shell input text "${char}"`
+    ),
+    `adb -s ${deviceId} shell input tap ${randomX5} ${randomY5}`,
+    `adb -s ${deviceId} shell input tap ${randomX5} ${randomY5}`
   );
-  
 
   async function executeCommandWithDelay(commands, index) {
-    if (index >= commands.length) return Promise.resolve();
-  
+    if (index >= commands.length) return;
     return new Promise((resolve, reject) => {
       exec(commands[index], (error) => {
         if (error) {
@@ -978,15 +901,12 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
           reject(error);
           return;
         }
-  
         const baseDelay = 150;
-        const variance = Math.random() * 80 - 40; 
+        const variance = Math.random() * 80 - 40;
         let randomDelay = baseDelay + variance;
-  
         if ((index + 1) % 4 === 0) {
           randomDelay += Math.random() * 300 + 100;
         }
-    
         setTimeout(() => {
           executeCommandWithDelay(commands, index + 1)
             .then(resolve)
@@ -994,24 +914,27 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
         }, randomDelay);
       });
     });
-  }  
-  
+  }
+
   try {
     await executeCommandWithDelay(initialCommands, 0);
     if (isCurrentlyInLostKingdom !== isLostKingdom) {
       await new Promise((resolve) => setTimeout(resolve, 10000));
     }
-
     await new Promise((resolve) => setTimeout(resolve, 400));
 
     const titleCheckResult = await tapCityAndCheck();
-
     if (!titleCheckResult.success) {
+      if (
+        titleCheckResult.error &&
+        titleCheckResult.error.includes("Negative title detected")
+      ) {
+        return { success: false, error: "Negative title detected" };
+      }
       return titleCheckResult;
     }
 
     await new Promise((resolve) => setTimeout(resolve, 1000));
-
     await executeCommandWithDelay(titleCommands[title], 0);
 
     return { success: true, coordinates: titleCheckResult.coordinates };
@@ -1110,10 +1033,13 @@ async function handleTitleRequest(
       const embed = {
         color: 0x87cefa,
         title: `${title} Request Added`,
-        description: queues[title].length > 0 ? `**Position in Queue**: ${queues[title].length}\n` : "",
+        description:
+          queues[title].length > 0
+            ? `**Position in Queue**: ${queues[title].length}\n`
+            : "",
         footer: {
           text: `📍 ${
-        isLostKingdom ? process.env.LOSTKINGDOM : process.env.KINGDOM
+            isLostKingdom ? process.env.LOSTKINGDOM : process.env.KINGDOM
           } ${userX} ${userY}    ⌛ ${customDuration} sec`,
         },
       };
@@ -1140,85 +1066,134 @@ async function handleTitleRequest(
   }
 }
 
-let processedResults = {}; // Object to store unique IDs with their timestamps
-let isScriptRunning = false;
-const EXPIRY_TIME = 24 * 60 * 60 * 1000; // 24 hours
+import process from "process"; // Import process for environment variables
+import { promisify } from "util";
+const execFileAsync = promisify(execFile);
 
-function cleanupOldResults() {
-  const currentTime = Date.now();
+// Initialize tracking variables
+let isScriptRunning = false; // Flag to indicate if the OCR script is currently running
+const cooldownPeriod = 5000; // 5 seconds cooldown period
+const MESSAGE_PROCESS_COOLDOWN = 300000; // 5 minutes cooldown period
+const CLEANUP_INTERVAL = 60000; // 1-minute cleanup interval
+const MAX_PROCESSED_MESSAGES = 1000; // Maximum number of tracked messages
 
-  // Remove processed results older than EXPIRY_TIME
-  for (const uniqueId in processedResults) {
-    if (currentTime - processedResults[uniqueId] > EXPIRY_TIME) {
-      delete processedResults[uniqueId];
+// Processed messages tracker (with timestamps)
+const processedMessages = new Map();
+
+/**
+ * Periodically clean up old processed messages
+ */
+setInterval(() => {
+  const now = Date.now();
+  for (const [hash, timestamp] of processedMessages.entries()) {
+    if (now - timestamp > MESSAGE_PROCESS_COOLDOWN) {
+      processedMessages.delete(hash);
     }
+  }
+}, CLEANUP_INTERVAL);
+
+/**
+ * Generates a unique hash for a message based on its properties.
+ * @param {Object} message - The message object.
+ * @returns {string} - The generated hash.
+ */
+function generateMessageHash(message) {
+  return `${message.title}|${message.kingdom}|${message.x}|${message.y}|${message.isLostKingdom}`;
+}
+
+/**
+ * Checks if a message has already been processed.
+ * @param {Object} message - The message object.
+ * @returns {boolean} - True if processed, false otherwise.
+ */
+function isMessageProcessed(message) {
+  const hash = generateMessageHash(message);
+  const timestamp = processedMessages.get(hash);
+
+  // If message is found and within cooldown, consider it processed
+  return timestamp && Date.now() - timestamp < MESSAGE_PROCESS_COOLDOWN;
+}
+
+/**
+ * Marks a message as processed.
+ * @param {Object} message - The message object.
+ */
+function markMessageAsProcessed(message) {
+  const hash = generateMessageHash(message);
+  processedMessages.set(hash, Date.now());
+
+  // Enforce maximum size
+  if (processedMessages.size > MAX_PROCESSED_MESSAGES) {
+    // Remove the oldest entry (FIFO)
+    const firstKey = processedMessages.keys().next().value;
+    processedMessages.delete(firstKey);
   }
 }
 
-function executeOCRScript() {
+/**
+ * Executes the OCR script and processes the output.
+ */
+async function executeOCRScript() {
   if (isScriptRunning) {
-    console.log("OCR script is already running, skipping this execution.");
+    // Script is already running; skip this execution
+    setTimeout(executeOCRScript, cooldownPeriod);
     return;
   }
-
   isScriptRunning = true;
-  const deviceId = process.env.EMULATOR_DEVICE_ID;
 
-  execFile("python", ["chat_webhook.py", deviceId, process.env.KINGDOM, process.env.LOSTKINGDOM], (error, stdout, stderr) => {
-    isScriptRunning = false; // Mark script as no longer running
+  try {
+    // Retrieve environment variables
+    const deviceId = process.env.EMULATOR_DEVICE_ID;
+    const kingdom = process.env.KINGDOM;
+    const lostKingdom = process.env.LOSTKINGDOM;
 
-    if (error) {
-      console.error(`Error executing Python script: ${error.message}`);
-      setTimeout(executeOCRScript, 5000);
-      return;
-    }
+    // Execute the Python OCR script
+    const { stdout, stderr } = await execFileAsync("python", ["chat_webhook.py", deviceId, kingdom, lostKingdom]);
 
     if (stderr) {
-      console.error(`Python stderr: ${stderr}`);
-      setTimeout(executeOCRScript, 5000);
+      // Handle Python script stderr output if necessary
+      // For now, skip processing and retry after cooldown
+      console.error("Python script error:", stderr);
+      setTimeout(executeOCRScript, cooldownPeriod);
       return;
     }
 
-    try {
-      const results = JSON.parse(stdout.trim() || "[]");
-
-      if (results.length === 0) {
-        setTimeout(executeOCRScript, 5000);
-        return;
-      }
-
-      results.forEach(async (result) => {
-        const { title, x, y, isLostKingdom } = result;
-        const uniqueId = `${title}-${x}-${y}-${isLostKingdom}`;
-
-        if (!processedResults[uniqueId]) {
-          // Mark as processed with the current timestamp
-          processedResults[uniqueId] = Date.now();
-
-          // Call handleTitleRequest
-          await handleTitleRequest(
-            null,
-            title,
-            null,
-            isLostKingdom,
-            x,
-            y,
-            process.env.KINGDOM
-          );
-          console.log(`Handled title request for "${title}" at (${x}, ${y}).`);
-        }
-      });
-
-      // Clean up old results before the next execution
-      cleanupOldResults();
-
-      // Re-execute after delay
-      setTimeout(executeOCRScript, 5000);
-    } catch (parseError) {
-      console.error("Error parsing Python script output:", parseError.message);
-      setTimeout(executeOCRScript, 5000);
+    // Parse the JSON output from the Python script
+    const results = JSON.parse(stdout.trim() || "[]");
+    if (results.length === 0) {
+      // No messages to process, retry after cooldown
+      setTimeout(executeOCRScript, cooldownPeriod);
+      return;
     }
-  });
+
+    const latestMessage = results[0];
+    const { title, x, y, isLostKingdom } = latestMessage;
+
+    // Check if the message has already been processed
+    if (isMessageProcessed(latestMessage)) {
+      // Message already processed; skip and retry after cooldown
+      setTimeout(executeOCRScript, cooldownPeriod);
+      return;
+    }
+
+    // Proceed to process the new message
+    markMessageAsProcessed(latestMessage);
+
+    // Handle the title request asynchronously
+    await handleTitleRequest(null, title, null, isLostKingdom, x, y, kingdom);
+
+    console.log("Processed message:", latestMessage);
+
+    // Schedule the next execution after cooldown period
+    setTimeout(executeOCRScript, cooldownPeriod);
+  } catch (error) {
+    // Handle errors (e.g., Python script execution failures)
+    console.error("Error executing OCR script:", error);
+    setTimeout(executeOCRScript, cooldownPeriod);
+  } finally {
+    isScriptRunning = false; // Reset the running flag
+  }
 }
 
+// Start the OCR script execution loop
 executeOCRScript();

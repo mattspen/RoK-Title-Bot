@@ -31,8 +31,8 @@ def match_template(image, templates, threshold):
     return None
 
 
-def find_add_title_button(screenshot_path, device_id):
-    """Locate the 'Add Title' button and simulate a tap."""
+def find_add_title_button(screenshot_path, device_id, click=True):
+    """Locate the 'Add Title' button and optionally tap."""
     img_rgb = load_image(screenshot_path)
     img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
 
@@ -44,12 +44,14 @@ def find_add_title_button(screenshot_path, device_id):
         cv2.rectangle(img_rgb, max_loc, (max_loc[0] + w, max_loc[1] + h), (0, 255, 0), 2)
         cv2.imwrite(f'temp/screenshot_found_{device_id}.png', img_rgb)
 
-        adb_command = f'adb -s {device_id} shell input tap {center_x} {center_y}'
-        try:
-            subprocess.run(adb_command, shell=True, check=True)
-            return {"x": center_x, "y": center_y}
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"ADB command failed: {e}")
+        if click:
+            adb_command = f'adb -s {device_id} shell input tap {center_x} {center_y}'
+            try:
+                subprocess.run(adb_command, shell=True, check=True)
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError(f"ADB command failed: {e}")
+
+        return {"x": center_x, "y": center_y}
     return {"error": "Button not found"}
 
 
@@ -89,13 +91,23 @@ if __name__ == "__main__":
 
     screenshot_path, device_id = sys.argv[1], sys.argv[2]
     try:
-        button_result = find_add_title_button(screenshot_path, device_id)
+        # First, find the button without clicking
+        button_result = find_add_title_button(screenshot_path, device_id, click=False)
         if "error" in button_result:
             print(json.dumps(button_result))
             sys.exit(1)
 
+        # Check for negative titles
         title_check_result = check_negative_titles(screenshot_path, button_result, device_id)
-        print(json.dumps(title_check_result if "error" in title_check_result else {"coordinates": button_result}))
+        if "error" in title_check_result:
+            # Negative title found, do not click
+            print(json.dumps(title_check_result))
+            sys.exit(1)
+
+        # If no negative title, click the button
+        find_add_title_button(screenshot_path, device_id, click=True)
+        print(json.dumps({"coordinates": button_result}))
+
     except Exception as e:
         print(json.dumps({"error": str(e)}))
         sys.exit(1)

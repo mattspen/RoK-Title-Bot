@@ -66,12 +66,11 @@ def preprocess_image(image_path, cropped_path):
     cv2.imwrite(cropped_path, cropped_image)
 
 def perform_ocr(image_path, kingdom, lost_kingdom):
-    """Perform OCR on the cropped image using Tesseract and format the results."""
+    """Perform OCR on the cropped image."""
     try:
         ocr_text = pytesseract.image_to_string(image_path, lang='eng')
         corrected_text = ocr_text.replace(';', ':').replace('_', '').replace('\n', ' ')
 
-        # Flexible regex pattern to match titles with extra text after them
         matches = re.findall(
             r'(duke|justice|scientist|architect)\b.*?\(#([A-Za-z0-9]+)\s*X[:.]?(\d+)\s*Y[:.]?(\d+)\)', 
             corrected_text,
@@ -85,13 +84,12 @@ def perform_ocr(image_path, kingdom, lost_kingdom):
             x_coord = match[2]
             y_coord = match[3]
 
-            # Extract numeric portion of the kingdom ID for comparison
-            numeric_kd = re.sub(r'[^0-9]', '', kd)
-            numeric_lost_kingdom = re.sub(r'[^0-9]', '', lost_kingdom)
+            # Attempt correction for common misreads
+            if kd.startswith('C'):
+                kd = kd.replace('C', '', 1)
 
-            # Determine if it's the lost kingdom
-            is_lost_kingdom = numeric_kd == numeric_lost_kingdom
-            
+            is_lost_kingdom = re.sub(r'[^0-9]', '', kd) == re.sub(r'[^0-9]', '', lost_kingdom)
+
             result = {
                 "title": title,
                 "kingdom": kd,
