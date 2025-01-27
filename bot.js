@@ -1073,61 +1073,39 @@ const execFileAsync = promisify(execFile);
 // Initialize tracking variables
 let isScriptRunning = false; // Flag to indicate if the OCR script is currently running
 const cooldownPeriod = 5000; // 5 seconds cooldown period
-const MESSAGE_PROCESS_COOLDOWN = 300000; // 5 minutes cooldown period
-const CLEANUP_INTERVAL = 60000; // 1-minute cleanup interval
-const MAX_PROCESSED_MESSAGES = 1000; // Maximum number of tracked messages
 
-// Processed messages tracker (with timestamps)
-const processedMessages = new Map();
+const activeRequests = new Map(); // Map to track active title assignments
 
 /**
- * Periodically clean up old processed messages
- */
-setInterval(() => {
-  const now = Date.now();
-  for (const [hash, timestamp] of processedMessages.entries()) {
-    if (now - timestamp > MESSAGE_PROCESS_COOLDOWN) {
-      processedMessages.delete(hash);
-    }
-  }
-}, CLEANUP_INTERVAL);
-
-/**
- * Generates a unique hash for a message based on its properties.
- * @param {Object} message - The message object.
- * @returns {string} - The generated hash.
- */
-function generateMessageHash(message) {
-  return `${message.title}|${message.kingdom}|${message.x}|${message.y}|${message.isLostKingdom}`;
-}
-
-/**
- * Checks if a message has already been processed.
- * @param {Object} message - The message object.
+ * Processes a new title request.
+ * If a different user requests the same title, the previous assignment is overridden.
+ * @param {Object} message - The message object containing request details.
  * @returns {boolean} - True if processed, false otherwise.
  */
-function isMessageProcessed(message) {
+function processTitleRequest(message) {
   const hash = generateMessageHash(message);
-  const timestamp = processedMessages.get(hash);
 
-  // If message is found and within cooldown, consider it processed
-  return timestamp && Date.now() - timestamp < MESSAGE_PROCESS_COOLDOWN;
-}
+  // Get the current assignment for the requested title
+  const existingRequest = activeRequests.get(message.title);
 
-/**
- * Marks a message as processed.
- * @param {Object} message - The message object.
- */
-function markMessageAsProcessed(message) {
-  const hash = generateMessageHash(message);
-  processedMessages.set(hash, Date.now());
-
-  // Enforce maximum size
-  if (processedMessages.size > MAX_PROCESSED_MESSAGES) {
-    // Remove the oldest entry (FIFO)
-    const firstKey = processedMessages.keys().next().value;
-    processedMessages.delete(firstKey);
+  // Check if the new request is different from the current assignment
+  if (
+    existingRequest &&
+    existingRequest.hash === hash
+  ) {
+    // The request is identical to the current assignment, skip processing
+    console.log("Request is already active, skipping:", message);
+    return false;
   }
+
+  // Update the active request with the new one
+  activeRequests.set(message.title, {
+    hash,
+    message,
+  });
+
+  console.log("Processing new request:", message);
+  return true;
 }
 
 /**
@@ -1151,8 +1129,6 @@ async function executeOCRScript() {
     const { stdout, stderr } = await execFileAsync("python", ["chat_webhook.py", deviceId, kingdom, lostKingdom]);
 
     if (stderr) {
-      // Handle Python script stderr output if necessary
-      // For now, skip processing and retry after cooldown
       console.error("Python script error:", stderr);
       setTimeout(executeOCRScript, cooldownPeriod);
       return;
@@ -1161,38 +1137,36 @@ async function executeOCRScript() {
     // Parse the JSON output from the Python script
     const results = JSON.parse(stdout.trim() || "[]");
     if (results.length === 0) {
-      // No messages to process, retry after cooldown
       setTimeout(executeOCRScript, cooldownPeriod);
       return;
     }
 
-    const latestMessage = results[0];
-    const { title, x, y, isLostKingdom } = latestMessage;
-
-    // Check if the message has already been processed
-    if (isMessageProcessed(latestMessage)) {
-      // Message already processed; skip and retry after cooldown
-      setTimeout(executeOCRScript, cooldownPeriod);
-      return;
+    // Iterate over the results to process each request
+    for (const message of results) {
+      if (processTitleRequest(message)) {
+        // Handle the title request if it's a new or updated request
+        const { title, x, y, isLostKingdom } = message;
+        await handleTitleRequest(null, title, null, isLostKingdom, x, y, kingdom);
+      }
     }
-
-    // Proceed to process the new message
-    markMessageAsProcessed(latestMessage);
-
-    // Handle the title request asynchronously
-    await handleTitleRequest(null, title, null, isLostKingdom, x, y, kingdom);
-
-    console.log("Processed message:", latestMessage);
 
     // Schedule the next execution after cooldown period
     setTimeout(executeOCRScript, cooldownPeriod);
   } catch (error) {
-    // Handle errors (e.g., Python script execution failures)
     console.error("Error executing OCR script:", error);
     setTimeout(executeOCRScript, cooldownPeriod);
   } finally {
     isScriptRunning = false; // Reset the running flag
   }
+}
+
+/**
+ * Generates a unique hash for a message based on its properties.
+ * @param {Object} message - The message object.
+ * @returns {string} - The generated hash.
+ */
+function generateMessageHash(message) {
+  return `${message.title}|${message.kingdom}|${message.x}|${message.y}|${message.isLostKingdom}`;
 }
 
 // Start the OCR script execution loop
