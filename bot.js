@@ -333,11 +333,11 @@ client.on("messageCreate", async (message) => {
                         }`
                       );
                       return message.reply(
-                        "> Failed to confirm app is running. Please check manually."
+                        "Failed to confirm app is running. Please check manually."
                       );
                     }
                     message.reply(
-                      "> App has been reset and is running successfully!"
+                      "App has been reset and is running successfully!"
                     );
                   }
                 );
@@ -431,6 +431,7 @@ client.on("messageCreate", async (message) => {
         await message.reply(
           "Coordinates are required for first-time registration. e.g: architect lk 603 449"
         );
+        lastUserRequest[userId] = null;
         return;
       }
 
@@ -440,10 +441,12 @@ client.on("messageCreate", async (message) => {
         color: 0xadd8e6,
         timestamp: new Date(),
         footer: {
-          text: `📍 Registration Successful: You have been registered with coordinates (${x}, ${y}) in Kingdom ${kingdom}.`,
+          text: `📍 Registration Successful`,
           icon_url: message.author.displayAvatarURL(),
         },
+        description: `You have been registered with coordinates **(${x}, ${y})** in **Kingdom ${kingdom}**.`,
       };
+      
 
       await message.reply({ embeds: [embed] });
     } else {
