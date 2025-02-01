@@ -19,6 +19,8 @@ import schedule from "node-schedule";
 import { runCheckState } from "./helpers/checkState.js";
 import startTimer from "./helpers/startTimer.js";
 import execAsync from "./helpers/execAsync.js";
+import process from "process";
+import { promisify } from "util";
 
 dotenv.config({
   path: process.env.ENV_FILE || ".env",
@@ -1069,8 +1071,7 @@ async function handleTitleRequest(
   }
 }
 
-import process from "process"; // Import process for environment variables
-import { promisify } from "util";
+
 const execFileAsync = promisify(execFile);
 
 // Initialize tracking variables
@@ -1096,8 +1097,6 @@ function processTitleRequest(message) {
     existingRequest &&
     existingRequest.hash === hash
   ) {
-    // The request is identical to the current assignment, skip processing
-    console.log("Request is already active, skipping:", message);
     return false;
   }
 
