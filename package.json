@@ -20,7 +20,7 @@
     "image-in-image": "^1.0.3",
     "jimp": "^1.6.0",
     "matches-subimage": "^1.0.1",
-    "mongoose": "^8.6.2",
+    "mongoose": "^8.9.5",
     "node-fetch": "^3.0.0",
     "node-schedule": "^2.1.1",
     "pngjs": "^7.0.0",
