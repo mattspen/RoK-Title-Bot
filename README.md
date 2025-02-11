@@ -52,6 +52,7 @@ The **Rise of Kingdoms Title Oracle** is a Discord bot designed to manage and au
 - Python 3.x installed on your system.  
 - OpenCV for Python installed (`opencv-python`, `opencv-python-headless`).  
 - NumPy installed (numpy is typically a dependency of OpenCV).
+- BlueStacks 5 instance - 1920x1080
 
 ## Installation
 
@@ -72,7 +73,7 @@ The **Rise of Kingdoms Title Oracle** is a Discord bot designed to manage and au
 - **KINGDOM**: The in-game kingdom that this bot manages.  
 - **LOSTKINGDOM**: The in-game lost kingdom that this bot manages.  
 - **SUPERUSER_ID**: A list of comma-separated Discord IDs for users who have admin/superuser privileges.  
-- **EMULATOR_DEVICE_ID**: The ADB device ID of the emulator running Rise of Kingdoms (optional, only needed for `resetbot` functionality).  
+- **EMULATOR_DEVICE_ID**: The ADB device ID of the emulator running Rise of Kingdoms.
 - **MONGO_URI**: The connection string for your MongoDB database.
 
 ## Error Handling
