@@ -91,20 +91,16 @@ if __name__ == "__main__":
 
     screenshot_path, device_id = sys.argv[1], sys.argv[2]
     try:
-        # First, find the button without clicking
         button_result = find_add_title_button(screenshot_path, device_id, click=False)
         if "error" in button_result:
             print(json.dumps(button_result))
             sys.exit(1)
 
-        # Check for negative titles
         title_check_result = check_negative_titles(screenshot_path, button_result, device_id)
         if "error" in title_check_result:
-            # Negative title found, do not click
             print(json.dumps(title_check_result))
             sys.exit(1)
 
-        # If no negative title, click the button
         find_add_title_button(screenshot_path, device_id, click=True)
         print(json.dumps({"coordinates": button_result}))
 

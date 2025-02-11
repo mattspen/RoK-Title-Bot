@@ -21,6 +21,7 @@ import startTimer from "./helpers/startTimer.js";
 import execAsync from "./helpers/execAsync.js";
 import process from "process";
 import { promisify } from "util";
+import generateMessageHash from "./helpers/generateMessageHash.js";
 
 dotenv.config({
   path: process.env.ENV_FILE || ".env",
@@ -164,7 +165,6 @@ client.on("messageCreate", async (message) => {
         titleMappings[key].includes(titleInput)
       );
 
-      // Validate title
       if (!normalizedTitle) {
         await message.reply(
           `Invalid title. Only the following titles can be unlocked: ${validTitles.join(
@@ -181,7 +181,7 @@ client.on("messageCreate", async (message) => {
       );
 
       const embed = {
-        color: 0x00ff00, // Green
+        color: 0x00ff00,
         title: `🔓 Title Unlocked`,
         description: lockedTitle
           ? `The title "${normalizedTitle}" has been successfully unlocked for kingdom ${kingdom}.`
@@ -343,7 +343,7 @@ client.on("messageCreate", async (message) => {
                     );
                   }
                 );
-              }, 25000); // Wait for 25 seconds before checking the app status
+              }, 25000);
             }
           );
         }
@@ -534,7 +534,6 @@ async function processGlobalAdbQueue() {
     }
 
     if (interaction) {
-      // Discord request: Send notification message and set up reaction collector
       const notificationMessage = await interaction.channel.send({
         content: `<@${userId}>, ${title.toLowerCase()} on you! React with ✅ when done, you have ${remainingTime} sec.`,
       });
@@ -603,15 +602,12 @@ async function processGlobalAdbQueue() {
       }, remainingTime * 1000);
     }
   } catch (error) {
-    // Check specifically for the negative title error
     if (error.message === "Negative title detected.") {
       if (request?.interaction?.channel && request?.userId) {
-        // We have an interaction and a userId, so mention the user in the channel
         await request.interaction.channel.send(
           `<@${request.userId}>, negative title detected, unable to grant title.`
         );
       } else if (request?.userId) {
-        // We have a userId but no channel interaction (e.g., direct chat request), attempt DM
         const discordUser = await client.users
           .fetch(request.userId)
           .catch(() => null);
@@ -621,7 +617,6 @@ async function processGlobalAdbQueue() {
           );
         }
       } else {
-        // No userId at all, do nothing
         console.log(
           "No user ID provided. Negative title detected, skipping..."
         );
@@ -632,7 +627,6 @@ async function processGlobalAdbQueue() {
       isAdbRunning[title] = false;
       setTimeout(() => processQueue(title), 10000);
     } else {
-      // Handle other errors here
       const deviceId = process.env.EMULATOR_DEVICE_ID;
       const screenshotPath = `./temp/screenshot_city_not_found_${deviceId}.png`;
       console.log(error);
@@ -730,8 +724,6 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
                 console.error(
                   `Error executing Python script: ${error.message}`
                 );
-                // If Python script exited with sys.exit(1), we don't get a real error message for "Negative title".
-                // We'll parse stdout to see if "Negative title" is in the JSON output.
                 resolve({ success: false, error: error.message });
                 return;
               }
@@ -749,8 +741,6 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
                 resolve({ success: false });
                 return;
               }
-
-              // Check for negative title error in JSON
               if (
                 result.error &&
                 result.error.includes("Negative title detected")
@@ -784,7 +774,6 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
           titleCheckResult.error &&
           titleCheckResult.error.includes("Negative title detected")
         ) {
-          // Stop immediately on negative title
           return { success: false, error: "Negative title detected" };
         }
       } catch (error) {
@@ -853,7 +842,6 @@ async function runAdbCommand(x, y, title, isLostKingdom) {
     ],
   };
 
-  // Configure random taps, etc...
   let randomX1 = Math.floor(Math.random() * (648 - 415 + 1)) + 415;
   if (isCurrentlyInLostKingdom) {
     randomX1 = Math.floor(Math.random() * (334 - 132 + 1)) + 132;
@@ -1074,61 +1062,22 @@ async function handleTitleRequest(
 
 const execFileAsync = promisify(execFile);
 
-// Initialize tracking variables
-let isScriptRunning = false; // Flag to indicate if the OCR script is currently running
-const cooldownPeriod = 5000; // 5 seconds cooldown period
+let isScriptRunning = false;
+const cooldownPeriod = 5000;
 
-const activeRequests = new Map(); // Map to track active title assignments
-
-/**
- * Processes a new title request.
- * If a different user requests the same title, the previous assignment is overridden.
- * @param {Object} message - The message object containing request details.
- * @returns {boolean} - True if processed, false otherwise.
- */
-function processTitleRequest(message) {
-  const hash = generateMessageHash(message);
-
-  // Get the current assignment for the requested title
-  const existingRequest = activeRequests.get(message.title);
-
-  // Check if the new request is different from the current assignment
-  if (
-    existingRequest &&
-    existingRequest.hash === hash
-  ) {
-    return false;
-  }
-
-  // Update the active request with the new one
-  activeRequests.set(message.title, {
-    hash,
-    message,
-  });
-
-  console.log("Processing new request:", message);
-  return true;
-}
-
-/**
- * Executes the OCR script and processes the output.
- */
 async function executeOCRScript() {
   if (isScriptRunning) {
-    // Script is already running; skip this execution
     setTimeout(executeOCRScript, cooldownPeriod);
     return;
   }
   isScriptRunning = true;
 
   try {
-    // Retrieve environment variables
     const deviceId = process.env.EMULATOR_DEVICE_ID;
     const kingdom = process.env.KINGDOM;
     const lostKingdom = process.env.LOSTKINGDOM;
 
-    // Execute the Python OCR script
-    const { stdout, stderr } = await execFileAsync("python", ["chat_webhook.py", deviceId, kingdom, lostKingdom]);
+    const { stdout, stderr } = await execFileAsync("python", ["read_chat.py", deviceId, kingdom, lostKingdom]);
 
     if (stderr) {
       console.error("Python script error:", stderr);
@@ -1136,40 +1085,26 @@ async function executeOCRScript() {
       return;
     }
 
-    // Parse the JSON output from the Python script
     const results = JSON.parse(stdout.trim() || "[]");
     if (results.length === 0) {
       setTimeout(executeOCRScript, cooldownPeriod);
       return;
     }
 
-    // Iterate over the results to process each request
     for (const message of results) {
       if (processTitleRequest(message)) {
-        // Handle the title request if it's a new or updated request
         const { title, x, y, isLostKingdom } = message;
         await handleTitleRequest(null, title, null, isLostKingdom, x, y, kingdom);
       }
     }
 
-    // Schedule the next execution after cooldown period
     setTimeout(executeOCRScript, cooldownPeriod);
   } catch (error) {
     console.error("Error executing OCR script:", error);
     setTimeout(executeOCRScript, cooldownPeriod);
   } finally {
-    isScriptRunning = false; // Reset the running flag
+    isScriptRunning = false;
   }
 }
 
-/**
- * Generates a unique hash for a message based on its properties.
- * @param {Object} message - The message object.
- * @returns {string} - The generated hash.
- */
-function generateMessageHash(message) {
-  return `${message.title}|${message.kingdom}|${message.x}|${message.y}|${message.isLostKingdom}`;
-}
-
-// Start the OCR script execution loop
 executeOCRScript();
