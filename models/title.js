@@ -1,4 +1,3 @@
-// models/Title.js
 import mongoose from "mongoose";
 
 const titleSchema = new mongoose.Schema({
