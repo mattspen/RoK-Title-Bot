@@ -16,7 +16,7 @@
     "cross-env": "^7.0.3",
     "discord.js": "^14.0.0",
     "dotenv": "^16.0.0",
-    "express": "^4.0.0",
+    "express": "^4.21.2",
     "image-in-image": "^1.0.3",
     "jimp": "^1.6.0",
     "matches-subimage": "^1.0.1",
