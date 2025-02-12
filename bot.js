@@ -15,13 +15,12 @@ import {
   titleDurations,
 } from "./helpers/vars.js";
 import { fetchCustomDurationFromDatabase } from "./helpers/fetchCustomDurationFromDatabase.js";
-import schedule from "node-schedule";
 import { runCheckState } from "./helpers/checkState.js";
 import startTimer from "./helpers/startTimer.js";
 import execAsync from "./helpers/execAsync.js";
 import process from "process";
 import { promisify } from "util";
-import generateMessageHash from "./helpers/generateMessageHash.js";
+import processTitleRequest from "./helpers/processTitleRequest.js";
 
 dotenv.config({
   path: process.env.ENV_FILE || ".env",

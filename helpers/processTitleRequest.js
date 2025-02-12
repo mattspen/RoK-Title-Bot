@@ -1,5 +1,3 @@
-import generateMessageHash from "./generateMessageHash";
-
 const activeRequests = new Map();
 
 export default function processTitleRequest(message) {
@@ -21,4 +19,8 @@ export default function processTitleRequest(message) {
   
     console.log("Processing new request:", message);
     return true;
+  }
+
+function generateMessageHash(message) {
+    return `${message.title}|${message.kingdom}|${message.x}|${message.y}|${message.isLostKingdom}`;
   }
